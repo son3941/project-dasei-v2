@@ -89,6 +89,15 @@ func createReply(text string) string {
 	memoryMu.RUnlock()
 
 	if ok {
+		if time.Since(memory.LastUsed) > 10*24*time.Hour {
+			memoryMu.Lock()
+			delete(memories, text)
+			memoryMu.Unlock()
+			ok = false
+		}
+	}
+
+	if ok {
 		memoryMu.Lock()
 		memory.LastUsed = time.Now()
 		memories[text] = memory
