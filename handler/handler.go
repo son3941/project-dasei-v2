@@ -51,6 +51,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 
 		h.logger.Info("community post",
 			slog.String("text", post.GetPost().GetText()),
+			slog.Any("community", post.GetPostedCommunity()),
 		)
 
 	case constv1.EventType_EVENT_TYPE_CHAT_MESSAGE_RECEIVED:
