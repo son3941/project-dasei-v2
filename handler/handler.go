@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
 	constv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/const/v1"
@@ -14,7 +15,8 @@ import (
 )
 
 type Memory struct {
-	Value string
+	Value    string
+	LastUsed time.Time
 }
 
 var (
@@ -84,6 +86,10 @@ func createReply(text string) string {
 	memoryMu.RUnlock()
 
 	if ok {
+		memoryMu.Lock()
+		memory.LastUsed = time.Now()
+		memories[text] = memory
+		memoryMu.Unlock()
 		return addEmoji(randomReply(
 			memory.Value,
 			memory.Value+"だった気がする",
