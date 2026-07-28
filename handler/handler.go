@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"math/rand"
 	"strings"
 
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
@@ -56,34 +57,76 @@ func createReply(text string) string {
 	switch {
 
 	case strings.Contains(text, "こんにちは"):
-		return "こんにちはなのだ！"
+		return addEmoji(randomReply(
+			"やぁ",
+			"おお",
+			"呼んだ？",
+			"だせいいた",
+		))
 
 	case strings.Contains(text, "おはよう"):
-		return "おはようなのだ！"
+		return addEmoji(randomReply(
+			"おはよう",
+			"おお",
+			"朝だ",
+		))
 
 	case strings.Contains(text, "こんばんは"):
-		return "こんばんはなのだ！"
+		return addEmoji(randomReply(
+			"こんばんは",
+			"もう夜",
+			"おお",
+		))
 
 	case strings.Contains(text, "おやすみ"):
-		return "またあとでなのだ！"
+		return addEmoji(randomReply(
+			"おやすみ",
+			"またね",
+			"寝る",
+		))
 
 	case strings.Contains(text, "疲れた"):
-		return "無理しなくていいのだ。"
+		return addEmoji(randomReply(
+			"無理しなくていいよ",
+			"おお",
+			"だせいも",
+			"今日は終わり",
+		))
 
 	case strings.Contains(text, "眠い"):
-		return "だせいも眠いのだ。"
+		return addEmoji(randomReply(
+			"だせいも",
+			"寝よう",
+			"おお",
+		))
 
 	case strings.Contains(text, "カレー"):
-		return "カレーは飲み物なのだ。"
+		return addEmoji(randomReply(
+			"飲み物",
+			"うまい",
+			"黄色",
+		))
 
 	case strings.Contains(text, "かわいい"):
-		return "照れるのだ。"
+		return addEmoji(randomReply(
+			"へへ",
+			"照れる",
+			"おお",
+		))
 
 	case strings.Contains(text, "だせい"):
-		return "呼んだのだ？"
+		return addEmoji(randomReply(
+			"呼んだ？",
+			"おお",
+			"いた",
+		))
 
 	default:
-		return "なるほどなのだ。"
+		return addEmoji(randomReply(
+			"おお",
+			"なるほど",
+			"へぇ",
+		))
 	}
 }
 
@@ -119,4 +162,19 @@ func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessage
 		slog.String("reply", reply),
 	)
 	return nil
+}
+func randomReply(list ...string) string {
+	return list[rand.Intn(len(list))]
+}
+func addEmoji(text string) string {
+	emojis := []string{
+		"🍆", "🛸", "🧦", "🪥", "🥒", "🦐", "🐟", "🪼", "🧃",
+	}
+
+	// 約80%の確率で絵文字を付ける
+	if rand.Intn(10) < 8 {
+		return text + emojis[rand.Intn(len(emojis))]
+	}
+
+	return text
 }
