@@ -52,7 +52,10 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("community post",
 			slog.Any("post", post),
 		)
-		reply := createReply(post.GetPost().GetText())
+		reply := GenerateReply(
+			post.GetPost().GetText(),
+			false,
+		)
 
 		authCtx, err := h.authenticator.AuthorizedContext(ctx)
 		if err != nil {
@@ -211,6 +214,9 @@ func createReply(text string) string {
 			"へぇ",
 		))
 	}
+}
+func GenerateReply(text string, isMention bool) string {
+	return createReply(text)
 }
 
 // handleChatMessage handles chat message received events by echoing the message back.
