@@ -52,6 +52,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("community post",
 			slog.Any("post", post),
 		)
+		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		reply := GenerateReply(
 			post.GetPost().GetText(),
 			false,
