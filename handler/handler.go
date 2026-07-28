@@ -44,9 +44,15 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	switch ev.EventType {
 	case constv1.EventType_EVENT_TYPE_POST_CREATED:
-		h.logger.Info("post event",
-			slog.Any("event", ev.GetPostCreatedEvent()),
+		post := ev.GetPostCreatedEvent()
+		if post == nil {
+			return nil
+		}
+
+		h.logger.Info("community post",
+			slog.String("text", post.GetPost().GetText()),
 		)
+
 	case constv1.EventType_EVENT_TYPE_CHAT_MESSAGE_RECEIVED:
 		h.logger.Info("received CHAT_MESSAGE_RECEIVED event",
 			slog.String("event_id", ev.EventId),
