@@ -1,94 +1,86 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
+	"crypto/ed25519"
+	"crypto/tls"
+	"encoding/base64"
+	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/mixigroup/mixi2-application-sdk-go/auth"
+	"github.com/mixigroup/mixi2-application-sdk-go/event/webhook"
+	application_apiv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/service/application_api/v1"
+	"github.com/son3941/project-dasei-v2/config"
+	"github.com/son3941/project-dasei-v2/handler"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
-type Event struct {
-	Type string `json:"type"`
-	Body struct {
-		Text string `json:"text"`
-		User string `json:"user"`
-	} `json:"body"`
-}
-
 func main() {
-	http.HandleFunc("/", health)
-	http.HandleFunc("/events", events)
+	cfg := config.GetConfig()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Decode public key
+	if cfg.SignaturePublicKey == "" {
+		log.Fatal("SIGNATURE_PUBLIC_KEY is required")
+	}
+	publicKeyBytes, err := base64.StdEncoding.DecodeString(cfg.SignaturePublicKey)
+	if err != nil {
+		log.Fatalf("failed to decode public key: %v", err)
+	}
+	publicKey := ed25519.PublicKey(publicKeyBytes)
+
+	// Create authenticator
+	authenticator, err := auth.NewAuthenticator(cfg.ClientID, cfg.ClientSecret, cfg.TokenURL)
+	if err != nil {
+		log.Fatalf("failed to create authenticator: %v", err)
 	}
 
-	log.Println("だせい起動")
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func health(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "dasei running")
-}
-
-func events(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusOK)
-		return
+	// Create gRPC connection for API
+	apiConn, err := grpc.NewClient(
+		cfg.APIAddress,
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})),
+	)
+	if err != nil {
+		log.Fatalf("failed to connect to api: %v", err)
 	}
+	defer apiConn.Close()
 
-	var e Event
+	// Create API client
+	apiClient := application_apiv1.NewApplicationServiceClient(apiConn)
 
-	if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Create event handler
+	eventHandler := handler.NewHandler(apiClient, authenticator)
+
+	// Create server
+	addr := ":" + cfg.Port
+	server := webhook.NewServer(addr, publicKey, eventHandler, webhook.WithLogger(logger))
+
+	// Setup graceful shutdown
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		logger.Info("shutting down...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Error("shutdown error", slog.Any("error", err))
+		}
+	}()
+
+	// Start server
+	logger.Info("starting webhook server", slog.String("port", cfg.Port))
+	if err := server.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("server error: %v", err)
 	}
-
-	reply := createReply(e.Body.Text)
-
-	res := map[string]string{
-		"reply": reply,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(res)
-}
-
-func createReply(text string) string {
-
-	t := strings.ToLower(text)
-
-	switch {
-
-	case strings.Contains(t, "こんにちは"):
-		return "こんにちはだせい。"
-
-	case strings.Contains(t, "おはよう"):
-		return "おはようだせい。"
-
-	case strings.Contains(t, "おやすみ"):
-		return "またあとでだせい。"
-
-	case strings.Contains(t, "カレー"):
-		return "カレーは飲み物だせい。"
-
-	case strings.Contains(t, "疲れた"):
-		return "無理しなくていいだせい。"
-
-	case strings.Contains(t, "眠い"):
-		return "だせいも眠いだせい。"
-
-	case strings.Contains(t, "かわいい"):
-		return "照れるだせい。"
-
-	case strings.Contains(t, "だせい"):
-		return "呼んだだせい？"
-
-	default:
-		return "なるほどだせい。"
-	}
+	logger.Info("stopped")
 }
