@@ -75,7 +75,10 @@ func createReply(text string) string {
 			value = strings.TrimSpace(value)
 
 			memoryMu.Lock()
-			memories[key] = Memory{Value: value}
+			memories[key] = Memory{
+				Value:    value,
+				LastUsed: time.Now(),
+			}
 			memoryMu.Unlock()
 
 			return addEmoji("わかった！")
