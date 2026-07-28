@@ -52,7 +52,30 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("community post",
 			slog.Any("post", post),
 		)
+		reply := createReply(post.GetPost().GetText())
 
+		authCtx, err := h.authenticator.AuthorizedContext(ctx)
+		if err != nil {
+			return err
+		}
+
+		communityID := post.GetPost().GetCommunityId()
+
+		_, err = h.apiClient.CreatePost(
+			authCtx,
+			&application_apiv1.CreatePostRequest{
+				CommunityId: &communityID,
+				Text:        reply,
+			},
+		)
+		if err != nil {
+			h.logger.Error("failed to create community post",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		h.logger.Info("community post created")
 	case constv1.EventType_EVENT_TYPE_CHAT_MESSAGE_RECEIVED:
 		h.logger.Info("received CHAT_MESSAGE_RECEIVED event",
 			slog.String("event_id", ev.EventId),
