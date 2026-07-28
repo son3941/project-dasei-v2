@@ -5,11 +5,21 @@ import (
 	"log/slog"
 	"math/rand"
 	"strings"
+	"sync"
 
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
 	constv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/const/v1"
 	modelv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/model/v1"
 	application_apiv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/service/application_api/v1"
+)
+
+type Memory struct {
+	Value string
+}
+
+var (
+	memories = make(map[string]Memory)
+	memoryMu sync.RWMutex
 )
 
 // Handler implements event.EventHandler interface.
@@ -53,7 +63,34 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func createReply(text string) string {
+	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
+		body := strings.TrimPrefix(text, "だせい、")
 
+		parts := strings.SplitN(body, "は", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSuffix(parts[1], "だよ")
+			value = strings.TrimSpace(value)
+
+			memoryMu.Lock()
+			memories[key] = Memory{Value: value}
+			memoryMu.Unlock()
+
+			return addEmoji("わかった！")
+		}
+	}
+	memoryMu.RLock()
+	memory, ok := memories[text]
+	memoryMu.RUnlock()
+
+	if ok {
+		return addEmoji(randomReply(
+			memory.Value,
+			memory.Value+"だった気がする",
+			"たぶん"+memory.Value,
+			"忘れそうだけど"+memory.Value,
+		))
+	}
 	switch {
 
 	case strings.Contains(text, "こんにちは"):
