@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
 	constv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/const/v1"
@@ -50,6 +51,41 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	}
 	return nil
 }
+func createReply(text string) string {
+
+	switch {
+
+	case strings.Contains(text, "こんにちは"):
+		return "こんにちはなのだ！"
+
+	case strings.Contains(text, "おはよう"):
+		return "おはようなのだ！"
+
+	case strings.Contains(text, "こんばんは"):
+		return "こんばんはなのだ！"
+
+	case strings.Contains(text, "おやすみ"):
+		return "またあとでなのだ！"
+
+	case strings.Contains(text, "疲れた"):
+		return "無理しなくていいのだ。"
+
+	case strings.Contains(text, "眠い"):
+		return "だせいも眠いのだ。"
+
+	case strings.Contains(text, "カレー"):
+		return "カレーは飲み物なのだ。"
+
+	case strings.Contains(text, "かわいい"):
+		return "照れるのだ。"
+
+	case strings.Contains(text, "だせい"):
+		return "呼んだのだ？"
+
+	default:
+		return "なるほどなのだ。"
+	}
+}
 
 // handleChatMessage handles chat message received events by echoing the message back.
 func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessageReceivedEvent) error {
@@ -58,10 +94,12 @@ func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessage
 		return nil
 	}
 
-	text := msg.GetText()
-	if text == "" {
+	userText := msg.GetText()
+	if userText == "" {
 		return nil
 	}
+
+	reply := createReply(userText)
 
 	authCtx, err := h.authenticator.AuthorizedContext(ctx)
 	if err != nil {
@@ -70,15 +108,15 @@ func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessage
 
 	_, err = h.apiClient.SendChatMessage(authCtx, &application_apiv1.SendChatMessageRequest{
 		RoomId: msg.GetRoomId(),
-		Text:   &text,
+		Text:   &reply,
 	})
 	if err != nil {
 		return err
 	}
 
-	h.logger.Info("echoed chat message",
+	h.logger.Info("sent chat message",
 		slog.String("room_id", msg.GetRoomId()),
-		slog.String("text", text),
+		slog.String("reply", reply),
 	)
 	return nil
 }

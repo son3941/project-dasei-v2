@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 
+	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -23,6 +24,7 @@ type Config struct {
 
 // GetConfig loads configuration from environment variables.
 func GetConfig() *Config {
+	_ = godotenv.Load()
 	var c Config
 	if err := envconfig.Process("", &c); err != nil {
 		log.Fatalf("failed to load config: %v", err)
