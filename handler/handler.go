@@ -127,7 +127,7 @@ func createReply(text string) string {
 	ok := false
 
 	for key, m := range memories {
-		if strings.Contains(text, key) {
+		if strings.Contains(key, text) {
 			memory = m
 			matchedKey = key
 			ok = true
