@@ -127,6 +127,7 @@ func createReply(text string) string {
 	ok := false
 
 	for key, m := range memories {
+		slog.Info("memory count", slog.Int("count", len(memories)))
 		if strings.Contains(key, text) {
 			memory = m
 			matchedKey = key
