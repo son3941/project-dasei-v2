@@ -53,9 +53,11 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			slog.Any("post", post),
 		)
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
+		text := post.GetPost().GetText()
+		isMention := strings.Contains(text, "@dasei")
 		reply := GenerateReply(
-			post.GetPost().GetText(),
-			false,
+			text,
+			isMention,
 		)
 
 		authCtx, err := h.authenticator.AuthorizedContext(ctx)
@@ -66,14 +68,24 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		communityID := post.GetPost().GetCommunityId()
 		replyTo := post.GetPost().GetPostId()
 
-		_, err = h.apiClient.CreatePost(
-			authCtx,
-			&application_apiv1.CreatePostRequest{
-				CommunityId:     &communityID,
-				Text:            reply,
-				InReplyToPostId: &replyTo,
-			},
-		)
+		if isMention {
+			_, err = h.apiClient.CreatePost(
+				authCtx,
+				&application_apiv1.CreatePostRequest{
+					CommunityId:     &communityID,
+					Text:            reply,
+					InReplyToPostId: &replyTo,
+				},
+			)
+		} else {
+			_, err = h.apiClient.CreatePost(
+				authCtx,
+				&application_apiv1.CreatePostRequest{
+					CommunityId: &communityID,
+					Text:        reply,
+				},
+			)
+		}
 		if err != nil {
 			h.logger.Error("failed to create community post",
 				slog.String("error", err.Error()),
@@ -251,6 +263,16 @@ func createReply(text string) string {
 		))
 	}
 }
+func createMutter(text string) string {
+	mutters := []string{
+		"？",
+		"はい",
+		"たぶん",
+		"えーとえーと",
+	}
+
+	return mutters[rand.Intn(len(mutters))]
+}
 func remember(text string) {
 	slog.Info("remember", slog.String("text", text))
 	text = strings.TrimSpace(text)
@@ -270,7 +292,11 @@ func remember(text string) {
 	slog.Info("remembered", slog.Any("memories", memories))
 }
 func GenerateReply(text string, isMention bool) string {
-	return createReply(text)
+	if isMention {
+		return createReply(text)
+	}
+
+	return createMutter(text)
 }
 
 // handleChatMessage handles chat message received events by echoing the message back.
