@@ -250,11 +250,15 @@ func remember(text string) {
 	}
 
 	memoryMu.Lock()
-	memories[text] = Memory{
-		Value:    text,
-		LastUsed: time.Now(),
+	words := strings.Fields(text)
+	if len(words) >= 2 {
+		memories[words[0]] = Memory{
+			Value:    words[len(words)-1],
+			LastUsed: time.Now(),
+		}
 	}
 	memoryMu.Unlock()
+	slog.Info("remembered", slog.Any("memories", memories))
 }
 func GenerateReply(text string, isMention bool) string {
 	return createReply(text)
