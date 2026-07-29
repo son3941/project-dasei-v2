@@ -99,6 +99,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func createReply(text string) string {
+	remember(text)
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		body := strings.TrimPrefix(text, "だせい、")
 
@@ -211,12 +212,34 @@ func createReply(text string) string {
 		))
 
 	default:
+		memoryMu.RLock()
+		for _, m := range memories {
+			if rand.Intn(5) == 0 {
+				memoryMu.RUnlock()
+				return addEmoji(m.Value)
+			}
+		}
+		memoryMu.RUnlock()
+
 		return addEmoji(randomReply(
 			"おお",
 			"なるほど",
 			"へぇ",
 		))
 	}
+}
+func remember(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+
+	memoryMu.Lock()
+	memories[text] = Memory{
+		Value:    text,
+		LastUsed: time.Now(),
+	}
+	memoryMu.Unlock()
 }
 func GenerateReply(text string, isMention bool) string {
 	return createReply(text)
