@@ -59,7 +59,13 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("event", slog.Any("event", ev))
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
+		displayName := ""
+		if post.GetIssuer() != nil {
+			displayName = post.GetIssuer().GetDisplayName()
+			rememberMember(displayName)
+		}
 		isMention := strings.Contains(text, "@dasei")
+
 		reply := GenerateReply(
 			text,
 			isMention,
