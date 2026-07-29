@@ -213,6 +213,7 @@ func createReply(text string) string {
 
 	default:
 		memoryMu.RLock()
+		slog.Info("memory count", slog.Int("count", len(memories)))
 		for _, m := range memories {
 			if rand.Intn(5) == 0 {
 				memoryMu.RUnlock()
