@@ -250,10 +250,9 @@ func remember(text string) {
 	}
 
 	memoryMu.Lock()
-	words := strings.Fields(text)
-	if len(words) >= 2 {
-		memories[words[0]] = Memory{
-			Value:    words[len(words)-1],
+	if len([]rune(text)) >= 2 {
+		memories[text] = Memory{
+			Value:    text,
 			LastUsed: time.Now(),
 		}
 	}
