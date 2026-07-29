@@ -229,6 +229,7 @@ func createReply(text string) string {
 	}
 }
 func remember(text string) {
+	slog.Info("remember", slog.String("text", text))
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
