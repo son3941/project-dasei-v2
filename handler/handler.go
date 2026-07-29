@@ -121,13 +121,25 @@ func createReply(text string) string {
 		}
 	}
 	memoryMu.RLock()
-	memory, ok := memories[text]
-	memoryMu.RUnlock()
 
+	var memory Memory
+	var matchedKey string
+	ok := false
+
+	for key, m := range memories {
+		if strings.Contains(text, key) {
+			memory = m
+			matchedKey = key
+			ok = true
+			break
+		}
+	}
+
+	memoryMu.RUnlock()
 	if ok {
 		if time.Since(memory.LastUsed) > 10*24*time.Hour {
 			memoryMu.Lock()
-			delete(memories, text)
+			delete(memories, matchedKey)
 			memoryMu.Unlock()
 			ok = false
 		}
