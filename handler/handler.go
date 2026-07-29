@@ -136,6 +136,7 @@ func createReply(text string) string {
 			slog.Info("matched")
 			slog.Info("reply", slog.String("value", memory.Value))
 			memory = m
+			slog.Info("copied", slog.Any("memory", memory))
 			matchedKey = key
 			ok = true
 			break
