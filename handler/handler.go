@@ -20,6 +20,10 @@ type Memory struct {
 }
 
 var (
+	members   []string
+	membersMu sync.RWMutex
+)
+var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
 )
@@ -297,6 +301,31 @@ func remember(text string) {
 	}
 	memoryMu.Unlock()
 	slog.Info("remembered", slog.Any("memories", memories))
+}
+func rememberMember(name string) {
+	name = strings.TrimSpace(name)
+
+	// 呼び捨てにする
+	name = strings.TrimSuffix(name, "さん")
+	name = strings.TrimSuffix(name, "ちゃん")
+	name = strings.TrimSuffix(name, "君")
+	name = strings.TrimSuffix(name, "くん")
+
+	if name == "" {
+		return
+	}
+
+	membersMu.Lock()
+	defer membersMu.Unlock()
+
+	for _, m := range members {
+		if m == name {
+			return
+		}
+	}
+
+	members = append(members, name)
+	slog.Info("member remembered", slog.Any("members", members))
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
