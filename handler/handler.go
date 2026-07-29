@@ -258,6 +258,7 @@ func remember(text string) {
 
 	memoryMu.Lock()
 	if len([]rune(text)) >= 2 {
+		slog.Info("saving", slog.String("text", text))
 		memories[text] = Memory{
 			Value:    text,
 			LastUsed: time.Now(),
