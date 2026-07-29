@@ -100,6 +100,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 }
 func createReply(text string) string {
 	remember(text)
+	slog.Info("createReply", slog.String("text", text))
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		body := strings.TrimPrefix(text, "だせい、")
 
