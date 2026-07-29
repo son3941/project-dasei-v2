@@ -121,7 +121,7 @@ func createReply(text string) string {
 		}
 	}
 	memoryMu.RLock()
-
+	slog.Info("memory count", slog.Int("count", len(memories)))
 	var memory Memory
 	var matchedKey string
 	ok := false
