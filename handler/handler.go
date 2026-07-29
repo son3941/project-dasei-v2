@@ -155,7 +155,7 @@ func createReply(text string) string {
 	if ok {
 		memoryMu.Lock()
 		memory.LastUsed = time.Now()
-		memories[text] = memory
+		memories[matchedKey] = memory
 		memoryMu.Unlock()
 		return addEmoji(randomReply(
 			memory.Value,
