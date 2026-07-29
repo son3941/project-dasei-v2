@@ -64,12 +64,14 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		}
 
 		communityID := post.GetPost().GetCommunityId()
+		replyTo := post.GetPost().GetPostId()
 
 		_, err = h.apiClient.CreatePost(
 			authCtx,
 			&application_apiv1.CreatePostRequest{
-				CommunityId: &communityID,
-				Text:        reply,
+				CommunityId:     &communityID,
+				Text:            reply,
+				InReplyToPostId: &replyTo,
 			},
 		)
 		if err != nil {
