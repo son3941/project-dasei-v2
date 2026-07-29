@@ -59,7 +59,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			text,
 			isMention,
 		)
-
+		if reply == "" {
+			return nil
+		}
 		authCtx, err := h.authenticator.AuthorizedContext(ctx)
 		if err != nil {
 			return err
@@ -264,6 +266,11 @@ func createReply(text string) string {
 	}
 }
 func createMutter(text string) string {
+	// 10%は何も言わない
+	if rand.Intn(100) >= 90 {
+		return ""
+	}
+
 	mutters := []string{
 		"？",
 		"はい",
@@ -311,7 +318,8 @@ func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessage
 		return nil
 	}
 
-	reply := createReply(userText)
+	isMention := strings.Contains(userText, "@dasei")
+	reply := GenerateReply(userText, isMention)
 
 	authCtx, err := h.authenticator.AuthorizedContext(ctx)
 	if err != nil {
