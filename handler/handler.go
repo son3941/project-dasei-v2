@@ -307,6 +307,9 @@ func createMutter(text string) string {
 func remember(text string) {
 	slog.Info("remember", slog.String("text", text))
 	text = strings.TrimSpace(text)
+	if isNGWord(text) {
+		return
+	}
 	if text == "" {
 		return
 	}
@@ -330,11 +333,20 @@ func isNGMember(name string) bool {
 	}
 	return false
 }
+func isNGWord(text string) bool {
+	for _, ng := range ngWords {
+		if strings.Contains(text, ng) {
+			return true
+		}
+	}
+	return false
+}
 func rememberMember(name string) {
 	name = strings.TrimSpace(name)
 	if isNGMember(name) {
 		return
 	}
+
 	// 呼び捨てにする
 	name = strings.TrimSuffix(name, "さん")
 	name = strings.TrimSuffix(name, "ちゃん")
