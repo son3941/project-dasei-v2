@@ -82,11 +82,15 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if isNGWord(text) {
     return nil
 }
+
 		displayName := ""
 		if post.GetIssuer() != nil {
 			displayName = post.GetIssuer().GetDisplayName()
 			rememberMember(displayName)
 		}
+		if isNGMember(displayName) {
+    return nil
+}
 		account := ""
 		if post.GetIssuer() != nil {
 			account = post.GetIssuer().GetUserId()
