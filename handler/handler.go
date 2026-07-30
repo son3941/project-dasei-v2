@@ -25,15 +25,22 @@ var (
 )
 var (
 	ngMembers = []string{
-		// "○○",
+		"ちー",
 	}
 
 	ngAccounts = []string{
-		// "@xxxxx",
+		 "chiii",
+		 "chiiii",
+		 "Chiiiii",
+		 "Chiiiiii",
+		 "Chiiiiiii",
+		 "Chiiiiiiii",
+		 "Chiiiiiiiii",
 	}
 
 	ngWords = []string{
-		// "○○",
+		"ちー",
+		 "キンカン",
 	}
 )
 var (
