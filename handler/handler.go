@@ -77,6 +77,13 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			displayName = post.GetIssuer().GetDisplayName()
 			rememberMember(displayName)
 		}
+		account := ""
+		if post.GetIssuer() != nil {
+			account = post.GetIssuer().GetUserId()
+		}
+		if isNGAccount(account) {
+			return nil
+		}
 		isMention := strings.Contains(text, "@dasei")
 
 		reply := GenerateReply(
@@ -336,6 +343,14 @@ func isNGMember(name string) bool {
 func isNGWord(text string) bool {
 	for _, ng := range ngWords {
 		if strings.Contains(text, ng) {
+			return true
+		}
+	}
+	return false
+}
+func isNGAccount(account string) bool {
+	for _, ng := range ngAccounts {
+		if account == ng {
 			return true
 		}
 	}
