@@ -24,6 +24,19 @@ var (
 	membersMu sync.RWMutex
 )
 var (
+	ngMembers = []string{
+		// "○○",
+	}
+
+	ngAccounts = []string{
+		// "@xxxxx",
+	}
+
+	ngWords = []string{
+		// "○○",
+	}
+)
+var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
 )
@@ -309,9 +322,19 @@ func remember(text string) {
 	memoryMu.Unlock()
 	slog.Info("remembered", slog.Any("memories", memories))
 }
+func isNGMember(name string) bool {
+	for _, ng := range ngMembers {
+		if name == ng {
+			return true
+		}
+	}
+	return false
+}
 func rememberMember(name string) {
 	name = strings.TrimSpace(name)
-
+	if isNGMember(name) {
+		return
+	}
 	// 呼び捨てにする
 	name = strings.TrimSuffix(name, "さん")
 	name = strings.TrimSuffix(name, "ちゃん")
