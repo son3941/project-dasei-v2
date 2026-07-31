@@ -150,7 +150,11 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if err != nil {
 			return err
 		}
-
+		h.logger.Info(
+			"community",
+			slog.String("communityID", post.GetPost().GetCommunityId()),
+			slog.String("postID", post.GetPost().GetPostId()),
+		)
 		communityID := post.GetPost().GetCommunityId()
 		h.communityID = communityID
 		replyTo := post.GetPost().GetPostId()
