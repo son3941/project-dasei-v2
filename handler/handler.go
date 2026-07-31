@@ -29,18 +29,18 @@ var (
 	}
 
 	ngAccounts = []string{
-		 "chiii",
-		 "chiiii",
-		 "Chiiiii",
-		 "Chiiiiii",
-		 "Chiiiiiii",
-		 "Chiiiiiiii",
-		 "Chiiiiiiiii",
+		"chiii",
+		"chiiii",
+		"Chiiiii",
+		"Chiiiiii",
+		"Chiiiiiii",
+		"Chiiiiiiii",
+		"Chiiiiiiiii",
 	}
 
 	ngWords = []string{
 		"ちー",
-		 "キンカン",
+		"キンカン",
 	}
 )
 var (
@@ -80,8 +80,8 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
 		if isNGWord(text) {
-    return nil
-}
+			return nil
+		}
 
 		displayName := ""
 		if post.GetIssuer() != nil {
@@ -89,8 +89,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			rememberMember(displayName)
 		}
 		if isNGMember(displayName) {
-    return nil
-}
+			return nil
+		}
+
 		account := ""
 		if post.GetIssuer() != nil {
 			account = post.GetIssuer().GetUserId()
@@ -399,11 +400,7 @@ func rememberMember(name string) {
 	slog.Info("member remembered", slog.Any("members", members))
 }
 func GenerateReply(text string, isMention bool) string {
-	if isMention {
-		return createReply(text)
-	}
-
-	return createMutter(text)
+	return createReply(text)
 }
 
 // handleChatMessage handles chat message received events by echoing the message back.
