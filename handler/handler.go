@@ -325,8 +325,23 @@ func createReply(text string) string {
 }
 func createMutter(text string) string {
 	// 10%は何も言わない
-	if rand.Intn(100) >= 90 {
-		return ""
+	if rand.Intn(100) < 80 && len(memories) > 0 {
+		memoryMu.RLock()
+
+		values := make([]string, 0, len(memories))
+		for _, m := range memories {
+			values = append(values, m.Value)
+		}
+
+		memoryMu.RUnlock()
+
+		if len(values) > 0 {
+			return addEmoji(randomReply(
+				values[rand.Intn(len(values))],
+				"たぶん"+values[rand.Intn(len(values))],
+				values[rand.Intn(len(values))]+"だった気がする",
+			))
+		}
 	}
 
 	mutters := []string{
