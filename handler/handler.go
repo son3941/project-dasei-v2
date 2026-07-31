@@ -175,7 +175,7 @@ func createReply(text string) string {
 				LastUsed: time.Now(),
 			}
 			memoryMu.Unlock()
-
+			remember(value)
 			return addEmoji("わかった！")
 		}
 	}
