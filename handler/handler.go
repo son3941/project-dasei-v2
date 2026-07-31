@@ -80,7 +80,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	slog.Info("community", slog.String("id", h.communityID))
 	if h.communityID == "" {
 		return nil
 	}
