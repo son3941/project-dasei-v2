@@ -76,7 +76,29 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 
 	slog.Info("mutter", slog.String("text", reply))
 
-	// ここは後で実際の投稿処理を書く
+	authCtx, err := h.authenticator.AuthorizedContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if h.communityID == "" {
+		return nil
+	}
+
+	_, err = h.apiClient.CreatePost(
+		authCtx,
+		&application_apiv1.CreatePostRequest{
+			CommunityId: &h.communityID,
+			Text:        reply,
+		},
+	)
+	if err != nil {
+		h.logger.Error("failed to create mutter",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+
 	return nil
 }
 
