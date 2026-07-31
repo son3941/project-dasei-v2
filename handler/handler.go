@@ -56,6 +56,7 @@ type Handler struct {
 	logger        *slog.Logger
 	apiClient     application_apiv1.ApplicationServiceClient
 	authenticator auth.Authenticator
+	communityID   string
 }
 
 // NewHandler creates a new Handler.
@@ -129,13 +130,15 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		}
 
 		communityID := post.GetPost().GetCommunityId()
+		h.communityID = communityID
 		replyTo := post.GetPost().GetPostId()
 
 		if isMention {
 			_, err = h.apiClient.CreatePost(
 				authCtx,
 				&application_apiv1.CreatePostRequest{
-					CommunityId:     &communityID,
+					CommunityId: &communityID,
+
 					Text:            reply,
 					InReplyToPostId: &replyTo,
 				},
