@@ -66,6 +66,18 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		authenticator: authenticator,
 	}
 }
+func (h *Handler) PostMutter(ctx context.Context) error {
+	reply := createMutter("")
+
+	if reply == "" {
+		return nil
+	}
+
+	slog.Info("mutter", slog.String("text", reply))
+
+	// ここは後で実際の投稿処理を書く
+	return nil
+}
 
 // Handle processes events from mixi2.
 func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
