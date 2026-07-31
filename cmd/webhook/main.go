@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -62,6 +63,16 @@ func main() {
 
 	// Create server
 	addr := ":" + cfg.Port
+	go func() {
+		for {
+			time.Sleep(10 * time.Minute)
+
+			if rand.Intn(100) < 60 {
+				ctx := context.Background()
+				_ = eventHandler.PostMutter(ctx)
+			}
+		}
+	}()
 	server := webhook.NewServer(addr, publicKey, eventHandler, webhook.WithLogger(logger))
 
 	// Setup graceful shutdown
