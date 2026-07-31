@@ -117,6 +117,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("event", slog.Any("event", ev))
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
+		rememberWords(text)
 		if isNGWord(text) {
 			return nil
 		}
@@ -126,6 +127,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			displayName = post.GetIssuer().GetDisplayName()
 			rememberMember(displayName)
 		}
+
 		if isNGMember(displayName) {
 			return nil
 		}
@@ -201,6 +203,25 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		)
 	}
 	return nil
+}
+func rememberWords(text string) {
+	words := strings.Fields(text)
+
+	memoryMu.Lock()
+	defer memoryMu.Unlock()
+
+	for _, word := range words {
+		word = strings.TrimSpace(word)
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		memories[word] = Memory{
+			Value:    word,
+			LastUsed: time.Now(),
+		}
+	}
 }
 func createReply(text string) string {
 	slog.Info("createReply", slog.String("text", text))
