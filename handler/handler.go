@@ -46,6 +46,9 @@ var (
 var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
+
+	teaches = make(map[string]string)
+	teachMu sync.RWMutex
 )
 
 // Handler implements event.EventHandler interface.
@@ -174,10 +177,20 @@ func createReply(text string) string {
 				Value:    value,
 				LastUsed: time.Now(),
 			}
+			teachMu.Lock()
+			teaches[key] = value
+			teachMu.Unlock()
 			memoryMu.Unlock()
-			remember(value)
 			return addEmoji("わかった！")
 		}
+		teachMu.RLock()
+		for key, value := range teaches {
+			if strings.Contains(text, key) {
+				teachMu.RUnlock()
+				return addEmoji(value)
+			}
+		}
+		teachMu.RUnlock()
 	}
 	memoryMu.RLock()
 	slog.Info("memory count", slog.Int("count", len(memories)))
@@ -323,44 +336,7 @@ func createMutter(text string) string {
 		"えーとえーと",
 	}
 
-	if rand.Intn(100) < 80 && len(memories) > 0 {
-		memoryMu.RLock()
-		values := make([]string, 0, len(memories))
-		for _, m := range memories {
-			values = append(values, m.Value)
-		}
-		memoryMu.RUnlock()
-
-		if len(values) > 0 {
-			return randomReply(
-				values[rand.Intn(len(values))],
-				"たぶん"+values[rand.Intn(len(values))],
-				values[rand.Intn(len(values))]+"だった気がする",
-			)
-		}
-	}
 	return mutters[rand.Intn(len(mutters))]
-}
-func remember(text string) {
-	slog.Info("remember", slog.String("text", text))
-	text = strings.TrimSpace(text)
-	if isNGWord(text) {
-		return
-	}
-	if text == "" {
-		return
-	}
-
-	memoryMu.Lock()
-	if len([]rune(text)) >= 2 {
-		slog.Info("saving", slog.String("text", text))
-		memories[text] = Memory{
-			Value:    text,
-			LastUsed: time.Now(),
-		}
-	}
-	memoryMu.Unlock()
-	slog.Info("remembered", slog.Any("memories", memories))
 }
 func isNGMember(name string) bool {
 	for _, ng := range ngMembers {
