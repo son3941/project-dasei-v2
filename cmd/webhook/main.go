@@ -60,7 +60,16 @@ func main() {
 
 	// Create event handler
 	eventHandler := handler.NewHandler(apiClient, authenticator)
+	go func() {
+		for {
+			time.Sleep(30 * time.Second)
 
+			ctx := context.Background()
+			if err := eventHandler.PostMutter(ctx); err != nil {
+				logger.Error("mutter failed", "err", err)
+			}
+		}
+	}()
 	// Create server
 	addr := ":" + cfg.Port
 	go func() {
