@@ -572,13 +572,21 @@ func saveMemories() {
 	}
 }
 func loadMemories() {
+	slog.Info("loading memories")
+
 	data, err := os.ReadFile("memories.json")
 	if err != nil {
+		slog.Error("failed to read memories", slog.String("error", err.Error()))
 		return
 	}
 
 	memoryMu.Lock()
 	defer memoryMu.Unlock()
 
-	_ = json.Unmarshal(data, &memories)
+	if err := json.Unmarshal(data, &memories); err != nil {
+		slog.Error("failed to unmarshal memories", slog.String("error", err.Error()))
+		return
+	}
+
+	slog.Info("loaded memories", slog.Int("count", len(memories)))
 }
