@@ -554,6 +554,8 @@ func addEmoji(text string) string {
 }
 func saveMemories() {
 	slog.Info("saving memories")
+	wd, _ := os.Getwd()
+	slog.Info("working dir", slog.String("dir", wd))
 	memoryMu.RLock()
 	defer memoryMu.RUnlock()
 
@@ -565,6 +567,8 @@ func saveMemories() {
 
 	if err := os.WriteFile("memories.json", data, 0644); err != nil {
 		slog.Error("failed to save memories", slog.String("error", err.Error()))
+	} else {
+		slog.Info("memories saved successfully")
 	}
 }
 func loadMemories() {
