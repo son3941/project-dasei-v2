@@ -248,15 +248,16 @@ func createReply(text string) string {
 			memoryMu.Unlock()
 			return addEmoji("わかった！")
 		}
-		teachMu.RLock()
-		for key, value := range teaches {
-			if strings.Contains(text, key) {
-				teachMu.RUnlock()
-				return addEmoji(value)
-			}
-		}
-
 	}
+
+	teachMu.RLock()
+	for key, value := range teaches {
+		if strings.Contains(text, key) {
+			teachMu.RUnlock()
+			return addEmoji(value)
+		}
+	}
+	teachMu.RUnlock()
 	memoryMu.RLock()
 	slog.Info("memory count", slog.Int("count", len(memories)))
 	var memory Memory
