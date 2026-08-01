@@ -255,8 +255,9 @@ func createReply(text string) string {
 				return addEmoji(value)
 			}
 		}
-		teachMu.RUnlock()
+
 	}
+	teachMu.RUnlock()
 	memoryMu.RLock()
 	slog.Info("memory count", slog.Int("count", len(memories)))
 	var memory Memory
