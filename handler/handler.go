@@ -148,7 +148,15 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		isMention :=
 			strings.Contains(text, "@dasei") ||
 				strings.Contains(text, "だせい")
+		shouldReply := isMention
 
+		if !shouldReply && rand.Intn(100) < 80 {
+			shouldReply = true
+		}
+
+		if !shouldReply {
+			return nil
+		}
 		reply := GenerateReply(
 			text,
 			isMention,
@@ -169,7 +177,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.communityID = communityID
 		replyTo := post.GetPost().GetPostId()
 
-		if isMention {
+		if shouldReply {
 			_, err = h.apiClient.CreatePost(
 				authCtx,
 				&application_apiv1.CreatePostRequest{
