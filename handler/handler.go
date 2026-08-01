@@ -553,6 +553,7 @@ func addEmoji(text string) string {
 	return text
 }
 func saveMemories() {
+	slog.Info("saving memories")
 	memoryMu.RLock()
 	defer memoryMu.RUnlock()
 
