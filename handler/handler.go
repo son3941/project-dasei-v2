@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"math/rand"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +63,7 @@ type Handler struct {
 
 // NewHandler creates a new Handler.
 func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authenticator auth.Authenticator) *Handler {
+	loadMemories()
 	return &Handler{
 		logger:        slog.Default(),
 		apiClient:     apiClient,
@@ -252,6 +255,7 @@ func createReply(text string) string {
 			teaches[key] = value
 			teachMu.Unlock()
 			memoryMu.Unlock()
+			saveMemories()
 			return addEmoji("わかった！")
 		}
 	}
@@ -542,4 +546,29 @@ func addEmoji(text string) string {
 	}
 
 	return text
+}
+func saveMemories() {
+	memoryMu.RLock()
+	defer memoryMu.RUnlock()
+
+	data, err := json.MarshalIndent(memories, "", "  ")
+	if err != nil {
+		slog.Error("failed to marshal memories", slog.String("error", err.Error()))
+		return
+	}
+
+	if err := os.WriteFile("memories.json", data, 0644); err != nil {
+		slog.Error("failed to save memories", slog.String("error", err.Error()))
+	}
+}
+func loadMemories() {
+	data, err := os.ReadFile("memories.json")
+	if err != nil {
+		return
+	}
+
+	memoryMu.Lock()
+	defer memoryMu.Unlock()
+
+	_ = json.Unmarshal(data, &memories)
 }
