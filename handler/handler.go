@@ -145,7 +145,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if isNGAccount(account) {
 			return nil
 		}
-		isMention := strings.Contains(text, "@dasei")
+		isMention :=
+			strings.Contains(text, "@dasei") ||
+				strings.Contains(text, "だせい")
 
 		reply := GenerateReply(
 			text,
