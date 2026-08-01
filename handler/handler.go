@@ -317,12 +317,7 @@ func createReply(text string) string {
 		memories[matchedKey] = memory
 		memoryMu.Unlock()
 		slog.Info("returning", slog.String("value", memory.Value))
-		return addEmoji(randomReply(
-			memory.Value,
-			memory.Value+"だった気がする",
-			"たぶん"+memory.Value,
-			"忘れそうだけど"+memory.Value,
-		))
+		return addEmoji(memory.Value)
 	}
 	switch {
 
