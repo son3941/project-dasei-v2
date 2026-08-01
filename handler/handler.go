@@ -61,6 +61,17 @@ type Handler struct {
 
 // NewHandler creates a new Handler.
 func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authenticator auth.Authenticator) *Handler {
+	loaded, err := LoadMemories()
+	if err == nil {
+		memoryMu.Lock()
+		for k, v := range loaded {
+			memories[k] = Memory{
+				Value:    v,
+				LastUsed: time.Now(),
+			}
+		}
+		memoryMu.Unlock()
+	}
 	return &Handler{
 		logger:        slog.Default(),
 		apiClient:     apiClient,
@@ -258,10 +269,11 @@ func createReply(text string) string {
 				Value:    value,
 				LastUsed: time.Now(),
 			}
+			memoryMu.Unlock()
+			_ = SaveMemory(key, value)
 			teachMu.Lock()
 			teaches[key] = value
 			teachMu.Unlock()
-			memoryMu.Unlock()
 			return addEmoji("わかった！")
 		}
 	}
