@@ -208,23 +208,29 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func rememberWords(text string) {
-	words := strings.Fields(text)
 
-	memoryMu.Lock()
-	defer memoryMu.Unlock()
+	separators := []string{"は", "が", "を", "に", "で", "と"}
 
-	for _, word := range words {
-		word = strings.TrimSpace(word)
+	for _, sep := range separators {
+		if strings.Contains(text, sep) {
+			parts := strings.SplitN(text, sep, 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
 
-		if len([]rune(word)) < 2 {
-			continue
-		}
-
-		memories[word] = Memory{
-			Value:    word,
-			LastUsed: time.Now(),
+				if key != "" && value != "" {
+					memoryMu.Lock()
+					memories[key] = Memory{
+						Value:    value,
+						LastUsed: time.Now(),
+					}
+					memoryMu.Unlock()
+				}
+				break
+			}
 		}
 	}
+
 }
 func createReply(text string) string {
 	slog.Info("createReply", slog.String("text", text))
