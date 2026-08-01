@@ -246,6 +246,7 @@ func rememberWords(text string) {
 						LastUsed: time.Now(),
 					}
 					memoryMu.Unlock()
+					_ = SaveMemory(key, value)
 				}
 				break
 			}
@@ -271,21 +272,11 @@ func createReply(text string) string {
 			}
 			memoryMu.Unlock()
 			_ = SaveMemory(key, value)
-			teachMu.Lock()
-			teaches[key] = value
-			teachMu.Unlock()
+
 			return addEmoji("わかった！")
 		}
 	}
 
-	teachMu.RLock()
-	for key, value := range teaches {
-		if strings.Contains(text, key) {
-			teachMu.RUnlock()
-			return addEmoji(value)
-		}
-	}
-	teachMu.RUnlock()
 	memoryMu.RLock()
 	slog.Info("memory count", slog.Int("count", len(memories)))
 	var memory Memory
@@ -395,15 +386,6 @@ func createReply(text string) string {
 		))
 
 	default:
-		memoryMu.RLock()
-		slog.Info("memory count", slog.Int("count", len(memories)))
-		for _, m := range memories {
-			if rand.Intn(5) == 0 {
-				memoryMu.RUnlock()
-				return addEmoji(m.Value)
-			}
-		}
-		memoryMu.RUnlock()
 
 		return addEmoji(randomReply(
 			"おお",
