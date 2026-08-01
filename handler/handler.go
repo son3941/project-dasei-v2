@@ -257,7 +257,6 @@ func createReply(text string) string {
 		}
 
 	}
-	teachMu.RUnlock()
 	memoryMu.RLock()
 	slog.Info("memory count", slog.Int("count", len(memories)))
 	var memory Memory
