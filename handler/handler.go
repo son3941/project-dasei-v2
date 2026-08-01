@@ -408,11 +408,21 @@ func createMutter(text string) string {
 		memoryMu.RUnlock()
 
 		if len(values) > 0 {
-			return addEmoji(randomReply(
-				values[rand.Intn(len(values))],
-				"たぶん"+values[rand.Intn(len(values))],
-				values[rand.Intn(len(values))]+"だった気がする",
-			))
+			connectors := []string{"は", "が", "も", "って"}
+
+			first := values[rand.Intn(len(values))]
+
+			if len(values) == 1 {
+				return addEmoji(first)
+			}
+
+			second := values[rand.Intn(len(values))]
+
+			return addEmoji(
+				first +
+					connectors[rand.Intn(len(connectors))] +
+					second,
+			)
 		}
 	}
 
