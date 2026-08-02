@@ -268,45 +268,44 @@ func rememberKnowledge(text string) {
 			slog.Any("feature", features),
 		)
 	}
-	separators := []string{"は", "が", "を", "に", "で", "と"}
+	var words []string
 
-	for _, sep := range separators {
-		if strings.Contains(text, sep) {
-			parts := strings.SplitN(text, sep, 2)
-			if len(parts) == 2 {
-				key := strings.TrimSpace(parts[0])
-				value := strings.TrimSpace(parts[1])
-				value = strings.TrimSpace(value)
+	for _, token := range tokens {
+		surface := strings.TrimSpace(token.Surface)
 
-				if len([]rune(value)) > 25 {
-					value = string([]rune(value)[:25])
-				}
+		if surface == "" {
+			continue
+		}
 
-				value = strings.Trim(value, "。、！？!?,")
-				if key != "" && value != "" {
-					memoryMu.Lock()
-					memories[key] = Memory{
-						Value:    value,
-						LastUsed: time.Now(),
-					}
-					memoryMu.Unlock()
-					if err := SaveMemory(key, value); err != nil {
-						slog.Error("SaveMemory failed",
-							slog.String("error", err.Error()),
-						)
-					} else {
-						slog.Info("SaveMemory success",
-							slog.String("key", key),
-							slog.String("value", value),
-						)
-					}
-				}
-				break
-			}
+		features := token.Features()
+
+		if len(features) == 0 {
+			continue
+		}
+
+		pos := features[0]
+
+		// 名詞だけ覚える
+		if pos == "名詞" {
+			words = append(words, surface)
 		}
 	}
+	for i := 0; i < len(words)-1; i++ {
 
+		key := words[i]
+		value := words[i+1]
+
+		memoryMu.Lock()
+		memories[key] = Memory{
+			Value:    value,
+			LastUsed: time.Now(),
+		}
+		memoryMu.Unlock()
+
+		SaveMemory(key, value)
+	}
 }
+
 func createReply(text string) string {
 	slog.Info("createReply", slog.String("text", text))
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
