@@ -383,11 +383,7 @@ func createReply(text string) string {
 		))
 
 	case strings.Contains(text, "カレー"):
-		return addEmoji(randomReply(
-			"飲み物",
-			"うまい",
-			"黄色",
-		))
+		return addEmoji("飲み物")
 
 	case strings.Contains(text, "かわいい"):
 		return addEmoji(randomReply(
