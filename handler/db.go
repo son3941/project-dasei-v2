@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -18,19 +19,34 @@ func initDB() error {
 
 	dbInitOnce.Do(func() {
 		dsn := os.Getenv("DATABASE_URL")
+
+		slog.Info("DATABASE_URL",
+			slog.Bool("exists", dsn != ""),
+		)
+
 		if dsn == "" {
 			err = sql.ErrConnDone
 			return
 		}
-
+		slog.Info("opening postgres")
 		db, err = sql.Open("postgres", dsn)
 		if err != nil {
+			slog.Error("sql.Open failed",
+				slog.String("error", err.Error()),
+			)
 			return
 		}
 
+		slog.Info("sql.Open OK")
+
 		if err = db.Ping(); err != nil {
+			slog.Error("Ping failed",
+				slog.String("error", err.Error()),
+			)
 			return
 		}
+		slog.Info("Ping OK")
+		slog.Info("creating table")
 
 		_, err = db.Exec(`
 CREATE TABLE IF NOT EXISTS memories (
@@ -39,6 +55,15 @@ CREATE TABLE IF NOT EXISTS memories (
     last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 `)
+
+		if err != nil {
+			slog.Error("CREATE TABLE failed",
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+
+		slog.Info("table created")
 	})
 
 	return err
