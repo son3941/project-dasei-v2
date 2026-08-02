@@ -246,7 +246,16 @@ func rememberWords(text string) {
 						LastUsed: time.Now(),
 					}
 					memoryMu.Unlock()
-					_ = SaveMemory(key, value)
+					if err := SaveMemory(key, value); err != nil {
+						slog.Error("SaveMemory failed",
+							slog.String("error", err.Error()),
+						)
+					} else {
+						slog.Info("SaveMemory success",
+							slog.String("key", key),
+							slog.String("value", value),
+						)
+					}
 				}
 				break
 			}
@@ -271,7 +280,16 @@ func createReply(text string) string {
 				LastUsed: time.Now(),
 			}
 			memoryMu.Unlock()
-			_ = SaveMemory(key, value)
+			if err := SaveMemory(key, value); err != nil {
+				slog.Error("SaveMemory failed",
+					slog.String("error", err.Error()),
+				)
+			} else {
+				slog.Info("SaveMemory success",
+					slog.String("key", key),
+					slog.String("value", value),
+				)
+			}
 
 			return addEmoji("わかった！")
 		}

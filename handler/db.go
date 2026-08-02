@@ -2,9 +2,10 @@ package handler
 
 import (
 	"database/sql"
+	"os"
 	"sync"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/lib/pq"
 )
 
 var (
@@ -16,18 +17,28 @@ func initDB() error {
 	var err error
 
 	dbInitOnce.Do(func() {
-		db, err = sql.Open("sqlite", "dasei.db")
+		dsn := os.Getenv("DATABASE_URL")
+		if dsn == "" {
+			err = sql.ErrConnDone
+			return
+		}
+
+		db, err = sql.Open("postgres", dsn)
 		if err != nil {
 			return
 		}
 
+		if err = db.Ping(); err != nil {
+			return
+		}
+
 		_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS memories (
-			key TEXT PRIMARY KEY,
-			value TEXT NOT NULL,
-			last_used DATETIME
-		)
-		`)
+CREATE TABLE IF NOT EXISTS memories (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+`)
 	})
 
 	return err
@@ -38,21 +49,30 @@ func SaveMemory(key, value string) error {
 		return err
 	}
 
-	_, err := db.Exec(
-		`INSERT OR REPLACE INTO memories(key, value, last_used)
-		 VALUES (?, ?, CURRENT_TIMESTAMP)`,
+	_, err := db.Exec(`
+INSERT INTO memories(key, value, last_used)
+VALUES ($1, $2, CURRENT_TIMESTAMP)
+ON CONFLICT (key)
+DO UPDATE SET
+    value = EXCLUDED.value,
+    last_used = CURRENT_TIMESTAMP
+`,
 		key,
 		value,
 	)
 
 	return err
 }
+
 func LoadMemories() (map[string]string, error) {
 	if err := initDB(); err != nil {
 		return nil, err
 	}
 
-	rows, err := db.Query(`SELECT key, value FROM memories`)
+	rows, err := db.Query(`
+SELECT key, value
+FROM memories
+`)
 	if err != nil {
 		return nil, err
 	}
