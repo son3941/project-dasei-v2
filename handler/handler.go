@@ -147,7 +147,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if isNGMember(displayName) {
 			return nil
 		}
-		rememberWords(text)
+		rememberKnowledge(text)
 
 		if err := SavePost(text); err != nil {
 			slog.Error("SavePost failed", slog.String("error", err.Error()))
@@ -234,7 +234,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	}
 	return nil
 }
-func rememberWords(text string) {
+func rememberKnowledge(text string) {
 
 	separators := []string{"は", "が", "を", "に", "で", "と"}
 
@@ -244,7 +244,13 @@ func rememberWords(text string) {
 			if len(parts) == 2 {
 				key := strings.TrimSpace(parts[0])
 				value := strings.TrimSpace(parts[1])
+				value = strings.TrimSpace(value)
 
+				if len([]rune(value)) > 25 {
+					value = string([]rune(value)[:25])
+				}
+
+				value = strings.Trim(value, "。、！？!?,")
 				if key != "" && value != "" {
 					memoryMu.Lock()
 					memories[key] = Memory{
