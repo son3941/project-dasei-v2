@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ikawaha/kagome-dict/ipa"
+	"github.com/ikawaha/kagome/v2/tokenizer"
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
 	constv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/const/v1"
 	modelv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/model/v1"
@@ -23,6 +25,16 @@ var (
 	members   []string
 	membersMu sync.RWMutex
 )
+var wakati *tokenizer.Tokenizer
+
+func init() {
+	var err error
+	wakati, err = tokenizer.New(ipa.Dict())
+	if err != nil {
+		panic(err)
+	}
+}
+
 var (
 	ngMembers = []string{
 		"ちー",
@@ -235,7 +247,14 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func rememberKnowledge(text string) {
+	tokens := wakati.Tokenize(text)
 
+	for _, token := range tokens {
+		slog.Info("token",
+			slog.String("surface", token.Surface),
+			slog.Any("feature", token.Features()),
+		)
+	}
 	separators := []string{"は", "が", "を", "に", "で", "と"}
 
 	for _, sep := range separators {
