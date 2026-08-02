@@ -247,6 +247,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func rememberKnowledge(text string) {
+	slog.Info("rememberKnowledge called")
 	tokens := wakati.Tokenize(text)
 
 	for _, token := range tokens {
