@@ -251,9 +251,21 @@ func rememberKnowledge(text string) {
 	tokens := wakati.Tokenize(text)
 
 	for _, token := range tokens {
-		slog.Info("token",
+		features := token.Features()
+
+		if len(features) == 0 {
+			continue
+		}
+
+		// 助詞・助動詞・記号は覚えない
+		switch features[0] {
+		case "助詞", "助動詞", "記号":
+			continue
+		}
+
+		slog.Info("remember",
 			slog.String("surface", token.Surface),
-			slog.Any("feature", token.Features()),
+			slog.Any("feature", features),
 		)
 	}
 	separators := []string{"は", "が", "を", "に", "で", "と"}
