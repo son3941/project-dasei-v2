@@ -131,10 +131,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("event", slog.Any("event", ev))
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
-		rememberWords(text)
-		if err := SavePost(text); err != nil {
-			slog.Error("SavePost failed", slog.String("error", err.Error()))
-		}
+
 		if isNGWord(text) {
 			return nil
 		}
@@ -144,11 +141,17 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			displayName = post.GetIssuer().GetDisplayName()
 			rememberMember(displayName)
 		}
-
+		if displayName == "だせい" {
+			return nil
+		}
 		if isNGMember(displayName) {
 			return nil
 		}
+		rememberWords(text)
 
+		if err := SavePost(text); err != nil {
+			slog.Error("SavePost failed", slog.String("error", err.Error()))
+		}
 		account := ""
 		if post.GetIssuer() != nil {
 			account = post.GetIssuer().GetUserId()
