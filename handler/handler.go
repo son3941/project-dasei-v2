@@ -393,6 +393,13 @@ func createReply(text string) string {
 		))
 
 	case strings.Contains(text, "だせい"):
+		if rand.Intn(100) < 70 {
+			post, err := LoadRandomPost()
+			if err == nil && post != "" {
+				return addEmoji(post)
+			}
+		}
+
 		return addEmoji(randomReply(
 			"えーとえーと",
 			"おお",
