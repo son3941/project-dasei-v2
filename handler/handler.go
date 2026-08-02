@@ -132,6 +132,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
 		rememberWords(text)
+		if err := SavePost(text); err != nil {
+			slog.Error("SavePost failed", slog.String("error", err.Error()))
+		}
 		if isNGWord(text) {
 			return nil
 		}
@@ -340,71 +343,72 @@ func createReply(text string) string {
 
 	case strings.Contains(text, "こんにちは"):
 		return addEmoji(randomReply(
-			"やぁ",
+			"はろー",
 			"おお",
-			"呼んだ？",
-			"だせいいた",
+			"んー？",
+			"はい",
 		))
 
 	case strings.Contains(text, "おはよう"):
 		return addEmoji(randomReply(
 			"おはよう",
 			"おお",
-			"朝だ",
+			"はろー",
 		))
 
 	case strings.Contains(text, "こんばんは"):
 		return addEmoji(randomReply(
 			"こんばんは",
-			"もう夜",
+			"わかる",
 			"おお",
 		))
 
 	case strings.Contains(text, "おやすみ"):
 		return addEmoji(randomReply(
 			"おやすみ",
-			"またね",
-			"寝る",
+			"なの！",
+			"ねるの？",
 		))
 
 	case strings.Contains(text, "疲れた"):
 		return addEmoji(randomReply(
-			"無理しなくていいよ",
+			"ほんと？",
 			"おお",
 			"だせいも",
-			"今日は終わり",
+			"わかる",
 		))
 
 	case strings.Contains(text, "眠い"):
 		return addEmoji(randomReply(
 			"だせいも",
-			"寝よう",
+			"ほんと？",
 			"おお",
 		))
-
-	case strings.Contains(text, "カレー"):
-		return addEmoji("飲み物")
 
 	case strings.Contains(text, "かわいい"):
 		return addEmoji(randomReply(
 			"へへ",
-			"照れる",
+			"えーとえーと",
 			"おお",
 		))
 
 	case strings.Contains(text, "だせい"):
 		return addEmoji(randomReply(
-			"呼んだ？",
+			"えーとえーと",
 			"おお",
-			"いた",
+			"んー？",
 		))
 
 	default:
+		post, err := LoadRandomPost()
+		if err == nil && post != "" {
+			return addEmoji(post)
+		}
 
 		return addEmoji(randomReply(
 			"おお",
-			"なるほど",
-			"へぇ",
+			"あ！！！",
+			"えーとえーと",
 		))
 	}
 }

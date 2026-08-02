@@ -65,7 +65,21 @@ CREATE TABLE IF NOT EXISTS memories (
 
 		slog.Info("table created")
 	})
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+`)
+	if err != nil {
+		slog.Error("CREATE POSTS TABLE failed",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
 
+	slog.Info("posts table created")
 	return err
 }
 
@@ -114,4 +128,33 @@ FROM memories
 	}
 
 	return memories, nil
+}
+
+func SavePost(text string) error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`
+INSERT INTO posts(text)
+VALUES ($1)
+`, text)
+
+	return err
+}
+func LoadRandomPost() (string, error) {
+	if err := initDB(); err != nil {
+		return "", err
+	}
+
+	var text string
+
+	err := db.QueryRow(`
+SELECT text
+FROM posts
+ORDER BY RANDOM()
+LIMIT 1
+`).Scan(&text)
+
+	return text, err
 }
