@@ -20,6 +20,8 @@ type Memory struct {
 	Value       string
 	LearnedAt   time.Time
 	LastReplyAt time.Time
+
+	MutterCount int
 }
 
 var (
@@ -59,6 +61,8 @@ var (
 var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
+
+	mutterUsage = make(map[string]int)
 
 	teaches = make(map[string]string)
 	teachMu sync.RWMutex
@@ -505,11 +509,84 @@ func createReply(text string) string {
 func generateMemoryPost() string {
 	memoryMu.RLock()
 	defer memoryMu.RUnlock()
-
+	mode := rand.Intn(100)
 	if len(memories) == 0 {
 		return ""
 	}
 
+	// 40%は覚えたペアをそのまま使う
+	if mode < 40 {
+		// 30%はペアを少し混ぜる
+		if mode < 70 {
+
+			type pair struct {
+				Key   string
+				Value string
+			}
+
+			var pairs []pair
+
+			for key, mem := range memories {
+				if mem.Value != "" {
+					pairs = append(pairs, pair{
+						Key:   key,
+						Value: mem.Value,
+					})
+				}
+			}
+
+			if len(pairs) >= 2 {
+
+				p1 := pairs[rand.Intn(len(pairs))]
+				p2 := pairs[rand.Intn(len(pairs))]
+
+				// 同じペアならもう一度選ぶ
+				for len(pairs) > 1 && p1.Key == p2.Key {
+					p2 = pairs[rand.Intn(len(pairs))]
+				}
+
+				post := p1.Key + " " + p2.Value
+
+				mutterUsage[p1.Key]++
+				mutterUsage[p2.Value]++
+
+				slog.Info("generated mixed post",
+					slog.String("post", post),
+				)
+
+				return post
+			}
+		}
+		type pair struct {
+			Key   string
+			Value string
+		}
+
+		var pairs []pair
+
+		for key, mem := range memories {
+			if mem.Value != "" {
+				pairs = append(pairs, pair{
+					Key:   key,
+					Value: mem.Value,
+				})
+			}
+		}
+
+		if len(pairs) > 0 {
+			p := pairs[rand.Intn(len(pairs))]
+
+			post := p.Key + " " + p.Value
+
+			slog.Info("generated pair post",
+				slog.String("post", post),
+			)
+
+			return post
+		}
+	}
+
+	// ここから下は今までどおり
 	var words []string
 
 	for key, mem := range memories {
@@ -518,10 +595,6 @@ func generateMemoryPost() string {
 		if mem.Value != "" {
 			words = append(words, mem.Value)
 		}
-	}
-
-	if len(words) == 0 {
-		return ""
 	}
 
 	rand.Shuffle(len(words), func(i, j int) {
@@ -534,7 +607,9 @@ func generateMemoryPost() string {
 		count = len(words)
 	}
 	post := strings.Join(words[:count], " ")
-
+	for _, word := range words[:count] {
+		mutterUsage[word]++
+	}
 	slog.Info("generated memory post",
 		slog.String("post", post),
 	)
