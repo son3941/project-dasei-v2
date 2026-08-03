@@ -133,7 +133,9 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	slog.Info("create response",
 		slog.Any("resp", resp),
 	)
-
+	slog.Info("created post id",
+		slog.String("postId", resp.Post.PostId),
+	)
 	stamps, err := h.apiClient.GetStamps(
 		authCtx,
 		&application_apiv1.GetStampsRequest{
