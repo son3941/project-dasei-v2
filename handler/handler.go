@@ -302,10 +302,18 @@ func rememberKnowledge(text string) {
 		}
 		memoryMu.Unlock()
 
-		SaveMemory(key, value)
+		if err := SaveMemory(key, value); err != nil {
+			slog.Error("SaveMemory failed",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			slog.Info("SaveMemory success",
+				slog.String("key", key),
+				slog.String("value", value),
+			)
+		}
 	}
 }
-
 func createReply(text string) string {
 	slog.Info("createReply", slog.String("text", text))
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
