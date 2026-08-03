@@ -151,7 +151,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	slog.Info("stamps",
 		slog.Any("resp", stamps),
 	)
-
+	slog.Info("★★★★ PostMutter END ★★★★")
 	return nil
 }
 
