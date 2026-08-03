@@ -179,6 +179,13 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 				StampId: stamp.StampId,
 			},
 		)
+		if err != nil {
+			slog.Error("AddStampToPost failed",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			slog.Info("AddStampToPost success")
+		}
 	}
 
 	slog.Info("★★★★ PostMutter END ★★★★")
