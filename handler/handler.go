@@ -151,26 +151,25 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	slog.Info("stamps",
 		slog.Any("resp", stamps),
 	)
+	slog.Info("stamps",
+		slog.Any("resp", stamps),
+	)
+
 	for _, set := range stamps.CommunityStampSets {
 		slog.Info("community stamp set",
 			slog.String("community", set.CommunityId),
 			slog.Int("count", len(set.Stamps)),
 		)
+	}
 
-		for _, stamp := range set.Stamps {
-			slog.Info("stamp",
-				slog.Any("value", stamp),
-			)
-			if len(stamps.CommunityStampSets) > 0 &&
-				len(stamps.CommunityStampSets[0].Stamps) > 0 {
+	if len(stamps.CommunityStampSets) > 0 &&
+		len(stamps.CommunityStampSets[0].Stamps) > 0 {
 
-				stamp := stamps.CommunityStampSets[0].Stamps[0]
+		stamp := stamps.CommunityStampSets[0].Stamps[0]
 
-				slog.Info("using stamp",
-					slog.Any("stamp", stamp),
-				)
-			}
-		}
+		slog.Info("using stamp",
+			slog.Any("stamp", stamp),
+		)
 	}
 
 	slog.Info("★★★★ PostMutter END ★★★★")
