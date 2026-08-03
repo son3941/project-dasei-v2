@@ -172,6 +172,13 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 		slog.Info("using stamp",
 			slog.Any("stamp", stamp),
 		)
+		_, err = h.apiClient.AddStampToPost(
+			authCtx,
+			&application_apiv1.AddStampToPostRequest{
+				PostId:  resp.Post.PostId,
+				StampId: stamp.StampId,
+			},
+		)
 	}
 
 	slog.Info("★★★★ PostMutter END ★★★★")
