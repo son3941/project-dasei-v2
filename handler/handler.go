@@ -134,6 +134,24 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 		slog.Any("resp", resp),
 	)
 
+	stamps, err := h.apiClient.GetStamps(
+		authCtx,
+		&application_apiv1.GetStampsRequest{
+			CommunityIds: []string{h.communityID},
+		},
+	)
+
+	if err != nil {
+		slog.Error("GetStamps failed",
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+
+	slog.Info("stamps",
+		slog.Any("resp", stamps),
+	)
+
 	return nil
 }
 
