@@ -17,8 +17,9 @@ import (
 )
 
 type Memory struct {
-	Value    string
-	LastUsed time.Time
+	Value       string
+	LearnedAt   time.Time
+	LastReplyAt time.Time
 }
 
 var (
@@ -78,8 +79,8 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		memoryMu.Lock()
 		for k, v := range loaded {
 			memories[k] = Memory{
-				Value:    v,
-				LastUsed: time.Now(),
+				Value:     v,
+				LearnedAt: time.Now(),
 			}
 		}
 		memoryMu.Unlock()
@@ -297,8 +298,8 @@ func rememberKnowledge(text string) {
 
 		memoryMu.Lock()
 		memories[key] = Memory{
-			Value:    value,
-			LastUsed: time.Now(),
+			Value:     value,
+			LearnedAt: time.Now(),
 		}
 		memoryMu.Unlock()
 
@@ -316,6 +317,11 @@ func rememberKnowledge(text string) {
 }
 func createReply(text string) string {
 	slog.Info("createReply", slog.String("text", text))
+	// 10%の確率で返信しない
+	if rand.Intn(100) >= 90 {
+		slog.Info("skip reply")
+		return ""
+	}
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		body := strings.TrimPrefix(text, "だせい、")
 
@@ -327,8 +333,8 @@ func createReply(text string) string {
 
 			memoryMu.Lock()
 			memories[key] = Memory{
-				Value:    value,
-				LastUsed: time.Now(),
+				Value:     value,
+				LearnedAt: time.Now(),
 			}
 			memoryMu.Unlock()
 			if err := SaveMemory(key, value); err != nil {
@@ -359,10 +365,19 @@ func createReply(text string) string {
 		)
 		slog.Info("memory count", slog.Int("count", len(memories)))
 		if strings.Contains(text, key) {
+
+			// 最近返信した記憶は使わない
+			if !m.LastReplyAt.IsZero() &&
+				time.Since(m.LastReplyAt) < 5*time.Minute {
+
+				slog.Info("skip recent reply",
+					slog.String("key", key),
+				)
+				continue
+			}
+
 			slog.Info("matched")
-			slog.Info("reply", slog.String("value", memory.Value))
 			memory = m
-			slog.Info("copied", slog.Any("memory", memory))
 			matchedKey = key
 			ok = true
 			break
@@ -371,7 +386,7 @@ func createReply(text string) string {
 
 	memoryMu.RUnlock()
 	if ok {
-		if time.Since(memory.LastUsed) > 10*24*time.Hour {
+		if time.Since(memory.LearnedAt) > 10*24*time.Hour {
 			memoryMu.Lock()
 			delete(memories, matchedKey)
 			memoryMu.Unlock()
@@ -380,10 +395,30 @@ func createReply(text string) string {
 	}
 
 	if ok {
+
+		// 10%はテンプレ返信
+		if rand.Intn(100) < 10 {
+
+			switch rand.Intn(5) {
+			case 0:
+				return addEmoji("おお")
+			case 1:
+				return addEmoji("へぇ～")
+			case 2:
+				return addEmoji("なるほど")
+			case 3:
+				return addEmoji("そうなんだ")
+			default:
+				return addEmoji("だせいもそう思う")
+			}
+		}
+
+		// 90%は記憶を返す
 		memoryMu.Lock()
-		memory.LastUsed = time.Now()
+		memory.LastReplyAt = time.Now()
 		memories[matchedKey] = memory
 		memoryMu.Unlock()
+
 		slog.Info("returning", slog.String("value", memory.Value))
 		return addEmoji(memory.Value)
 	}
@@ -442,8 +477,8 @@ func createReply(text string) string {
 
 	case strings.Contains(text, "だせい"):
 		if rand.Intn(100) < 70 {
-			post, err := LoadRandomPost()
-			if err == nil && post != "" {
+			post := generateMemoryPost()
+			if post != "" {
 				return addEmoji(post)
 			}
 		}
@@ -455,8 +490,8 @@ func createReply(text string) string {
 		))
 
 	default:
-		post, err := LoadRandomPost()
-		if err == nil && post != "" {
+		post := generateMemoryPost()
+		if post != "" {
 			return addEmoji(post)
 		}
 
@@ -467,6 +502,46 @@ func createReply(text string) string {
 		))
 	}
 }
+func generateMemoryPost() string {
+	memoryMu.RLock()
+	defer memoryMu.RUnlock()
+
+	if len(memories) == 0 {
+		return ""
+	}
+
+	var words []string
+
+	for key, mem := range memories {
+		words = append(words, key)
+
+		if mem.Value != "" {
+			words = append(words, mem.Value)
+		}
+	}
+
+	if len(words) == 0 {
+		return ""
+	}
+
+	rand.Shuffle(len(words), func(i, j int) {
+		words[i], words[j] = words[j], words[i]
+	})
+
+	count := 2 + rand.Intn(2) // 2～3語
+
+	if count > len(words) {
+		count = len(words)
+	}
+	post := strings.Join(words[:count], " ")
+
+	slog.Info("generated memory post",
+		slog.String("post", post),
+	)
+
+	return post
+}
+
 func createMutter(text string) string {
 	// 10%は何も言わない
 	if rand.Intn(100) < 80 && len(memories) > 0 {
