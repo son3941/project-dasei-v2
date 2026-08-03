@@ -122,13 +122,17 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 			Text:        reply,
 		},
 	)
-	slog.Info("create response", slog.Any("resp", resp))
+
 	if err != nil {
 		h.logger.Error("failed to create mutter",
 			slog.String("error", err.Error()),
 		)
 		return err
 	}
+
+	slog.Info("create response",
+		slog.Any("resp", resp),
+	)
 
 	return nil
 }
