@@ -200,7 +200,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if post == nil {
 			return nil
 		}
-
+		slog.Info("POST CREATED EVENT",
+			slog.Any("post", post),
+		)
 		h.logger.Info("community post",
 			slog.Any("post", post),
 		)
