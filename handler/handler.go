@@ -115,14 +115,14 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	if h.communityID == "" {
 		return nil
 	}
-
-	_, err = h.apiClient.CreatePost(
+	resp, err := h.apiClient.CreatePost(
 		authCtx,
 		&application_apiv1.CreatePostRequest{
 			CommunityId: &h.communityID,
 			Text:        reply,
 		},
 	)
+	slog.Info("create response", slog.Any("resp", resp))
 	if err != nil {
 		h.logger.Error("failed to create mutter",
 			slog.String("error", err.Error()),
@@ -597,16 +597,28 @@ func generateMemoryPost() string {
 		}
 	}
 
-	rand.Shuffle(len(words), func(i, j int) {
-		words[i], words[j] = words[j], words[i]
-	})
-
-	count := 2 + rand.Intn(2) // 2～3語
+	count := 2 + rand.Intn(2)
 
 	if count > len(words) {
 		count = len(words)
 	}
-	post := strings.Join(words[:count], " ")
+
+	selected := make([]string, 0, count)
+	used := make(map[string]bool)
+
+	for len(selected) < count {
+
+		w := pickWord(words)
+
+		if used[w] {
+			continue
+		}
+
+		used[w] = true
+		selected = append(selected, w)
+	}
+
+	post := strings.Join(selected, " ")
 	for _, word := range words[:count] {
 		mutterUsage[word]++
 	}
@@ -616,7 +628,30 @@ func generateMemoryPost() string {
 
 	return post
 }
+func pickWord(words []string) string {
+	if len(words) == 0 {
+		return ""
+	}
 
+	// まず最小使用回数を探す
+	min := -1
+	for _, w := range words {
+		c := mutterUsage[w]
+		if min == -1 || c < min {
+			min = c
+		}
+	}
+
+	// 最小回数～最小+2回までを候補にする
+	var candidates []string
+	for _, w := range words {
+		if mutterUsage[w] <= min+2 {
+			candidates = append(candidates, w)
+		}
+	}
+
+	return candidates[rand.Intn(len(candidates))]
+}
 func createMutter(text string) string {
 	// 10%は何も言わない
 	if rand.Intn(100) < 80 && len(memories) > 0 {
