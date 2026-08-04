@@ -7,7 +7,17 @@ import (
 
 func buildSentence(subject, predicate string) string {
 	predicate = strings.TrimSpace(predicate)
+	// 文章っぽいものはそのまま返す
+	if strings.Contains(subject, " ") ||
+		strings.Contains(subject, "、") ||
+		strings.Contains(subject, "。") {
 
+		return subject
+	}
+	// predicate が長い文章ならそのまま使う
+	if len([]rune(predicate)) > 15 {
+		return subject + " " + predicate
+	}
 	if strings.Contains(predicate, "は") ||
 		strings.Contains(predicate, "が") ||
 		strings.Contains(predicate, "やねん") ||
