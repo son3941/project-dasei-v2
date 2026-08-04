@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -49,6 +50,16 @@ func replyFromMemory(text string) string {
 	memory.LastReplyAt = time.Now()
 	memories[matchedKey] = memory
 	memoryMu.Unlock()
+
+	if rand.Intn(100) < 30 {
+		name := randomMember()
+		if name != "" {
+			if rand.Intn(2) == 0 {
+				return addEmoji(name + "も")
+			}
+			return addEmoji(name + "もそう")
+		}
+	}
 
 	return addEmoji(memory.Value)
 }
