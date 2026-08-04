@@ -136,58 +136,6 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	slog.Info("created post id",
 		slog.String("postId", resp.Post.PostId),
 	)
-	stamps, err := h.apiClient.GetStamps(
-		authCtx,
-		&application_apiv1.GetStampsRequest{},
-	)
-	h.logger.Info("official stamp sets",
-		slog.Int("count", len(stamps.OfficialStampSets)),
-	)
-	if err != nil {
-		slog.Error("GetStamps failed",
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
-
-	slog.Info("stamps",
-		slog.Any("resp", stamps),
-	)
-	slog.Info("stamps",
-		slog.Any("resp", stamps),
-	)
-
-	for _, set := range stamps.CommunityStampSets {
-		slog.Info("community stamp set",
-			slog.String("community", set.CommunityId),
-			slog.Int("count", len(set.Stamps)),
-		)
-	}
-
-	if len(stamps.CommunityStampSets) > 0 &&
-		len(stamps.CommunityStampSets[0].Stamps) > 0 {
-
-		set := stamps.CommunityStampSets[rand.Intn(len(stamps.CommunityStampSets))]
-		stamp := set.Stamps[rand.Intn(len(set.Stamps))]
-
-		slog.Info("using stamp",
-			slog.Any("stamp", stamp),
-		)
-		_, err = h.apiClient.AddStampToPost(
-			authCtx,
-			&application_apiv1.AddStampToPostRequest{
-				PostId:  resp.Post.PostId,
-				StampId: stamp.StampId,
-			},
-		)
-		if err != nil {
-			slog.Error("AddStampToPost failed",
-				slog.String("error", err.Error()),
-			)
-		} else {
-			slog.Info("AddStampToPost success")
-		}
-	}
 
 	slog.Info("★★★★ PostMutter END ★★★★")
 	return nil
@@ -297,41 +245,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		}
 
 		h.logger.Info("community post created")
-		stamps, err := h.apiClient.GetStamps(
-			authCtx,
-			&application_apiv1.GetStampsRequest{
-				CommunityIds: []string{communityID},
-			},
-		)
-		if err != nil {
-			h.logger.Error("failed to get stamps",
-				slog.String("error", err.Error()),
-			)
-			return nil
-		}
 
-		if len(stamps.CommunityStampSets) > 0 &&
-			len(stamps.CommunityStampSets[0].Stamps) > 0 {
-
-			set := stamps.CommunityStampSets[rand.Intn(len(stamps.CommunityStampSets))]
-			stamp := set.Stamps[rand.Intn(len(set.Stamps))]
-
-			_, err = h.apiClient.AddStampToPost(
-				authCtx,
-				&application_apiv1.AddStampToPostRequest{
-					PostId:  replyTo,
-					StampId: stamp.StampId,
-				},
-			)
-
-			if err != nil {
-				h.logger.Error("AddStampToPost failed",
-					slog.String("error", err.Error()),
-				)
-			} else {
-				h.logger.Info("AddStampToPost success")
-			}
-		}
 	case constv1.EventType_EVENT_TYPE_CHAT_MESSAGE_RECEIVED:
 		h.logger.Info("received CHAT_MESSAGE_RECEIVED event",
 			slog.String("event_id", ev.EventId),
