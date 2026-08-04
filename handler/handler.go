@@ -167,7 +167,8 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	if len(stamps.CommunityStampSets) > 0 &&
 		len(stamps.CommunityStampSets[0].Stamps) > 0 {
 
-		stamp := stamps.CommunityStampSets[0].Stamps[0]
+		set := stamps.CommunityStampSets[0]
+		stamp := set.Stamps[rand.Intn(len(set.Stamps))]
 
 		slog.Info("using stamp",
 			slog.Any("stamp", stamp),
