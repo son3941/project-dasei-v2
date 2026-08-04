@@ -49,15 +49,17 @@ func buildSentence(subject, predicate string) string {
 		predicate + "らしい",
 		predicate + "かな",
 	}
-	switch rand.Intn(3) {
+	r := rand.Intn(100)
 
-	case 0:
-		return simple[rand.Intn(len(simple))]
+	switch {
 
-	case 1:
+	case r < 60:
 		return join[rand.Intn(len(join))]
 
-	default:
+	case r < 85:
 		return ending[rand.Intn(len(ending))]
+
+	default:
+		return simple[rand.Intn(len(simple))]
 	}
 }
