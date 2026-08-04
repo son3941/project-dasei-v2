@@ -1,9 +1,23 @@
 package handler
 
-import "math/rand"
+import (
+	"math/rand"
+	"strings"
+)
 
 func buildSentence(subject, predicate string) string {
+	predicate = strings.TrimSpace(predicate)
 
+	if strings.Contains(predicate, "は") ||
+		strings.Contains(predicate, "が") ||
+		strings.Contains(predicate, "です") ||
+		strings.Contains(predicate, "だよ") ||
+		strings.Contains(predicate, "かな") ||
+		strings.Contains(predicate, "！") ||
+		strings.Contains(predicate, "？") {
+
+		return subject + " " + predicate
+	}
 	patterns := []string{
 		subject + "は" + predicate,
 		subject + "も" + predicate,
