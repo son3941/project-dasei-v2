@@ -313,7 +313,8 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if len(stamps.CommunityStampSets) > 0 &&
 			len(stamps.CommunityStampSets[0].Stamps) > 0 {
 
-			stamp := stamps.CommunityStampSets[0].Stamps[0]
+			set := stamps.CommunityStampSets[rand.Intn(len(stamps.CommunityStampSets))]
+			stamp := set.Stamps[rand.Intn(len(set.Stamps))]
 
 			_, err = h.apiClient.AddStampToPost(
 				authCtx,
