@@ -100,7 +100,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 		return nil
 	}
 	reply := createMutter("")
-
+	reply = randomStyle(reply)
 	if reply == "" {
 		return nil
 	}
