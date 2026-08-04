@@ -54,10 +54,7 @@ func replyFromMemory(text string) string {
 	if rand.Intn(100) < 30 {
 		name := randomMember()
 		if name != "" {
-			if rand.Intn(2) == 0 {
-				return addEmoji(name + "も")
-			}
-			return addEmoji(name + "もそう")
+			return memberPhrase(name)
 		}
 	}
 

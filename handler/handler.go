@@ -635,11 +635,13 @@ func createMutter(text string) string {
 
 			second := values[rand.Intn(len(values))]
 
-			return addEmoji(
+			reply := addEmoji(
 				first +
 					connectors[rand.Intn(len(connectors))] +
 					second,
 			)
+
+			return decorateMutter(reply)
 		}
 	}
 
@@ -650,7 +652,9 @@ func createMutter(text string) string {
 		"えーとえーと",
 	}
 
-	return mutters[rand.Intn(len(mutters))]
+	return decorateMutter(
+		mutters[rand.Intn(len(mutters))],
+	)
 }
 func isNGMember(name string) bool {
 	for _, ng := range ngMembers {
@@ -681,12 +685,6 @@ func rememberMember(name string) {
 	if isNGMember(name) {
 		return
 	}
-
-	// 呼び捨てにする
-	name = strings.TrimSuffix(name, "さん")
-	name = strings.TrimSuffix(name, "ちゃん")
-	name = strings.TrimSuffix(name, "君")
-	name = strings.TrimSuffix(name, "くん")
 
 	if name == "" {
 		return
