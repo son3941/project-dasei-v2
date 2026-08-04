@@ -10,42 +10,44 @@ func buildSentence(subject, predicate string) string {
 
 	if strings.Contains(predicate, "は") ||
 		strings.Contains(predicate, "が") ||
-		strings.Contains(predicate, "です") ||
-		strings.Contains(predicate, "だよ") ||
+		strings.Contains(predicate, "やねん") ||
+		strings.Contains(predicate, "なの❤") ||
 		strings.Contains(predicate, "かな") ||
 		strings.Contains(predicate, "！") ||
 		strings.Contains(predicate, "？") {
 
 		return subject + " " + predicate
 	}
-	patterns := []string{
+	simple := []string{
+		subject + "好き",
+		subject + "気になる",
+		subject + "ええね",
+		subject + "ゴイスー",
+		subject + "かな",
+	}
+
+	join := []string{
 		subject + "は" + predicate,
 		subject + "も" + predicate,
 		subject + "って" + predicate,
+		subject + "で" + predicate,
+	}
 
-		subject + "好き",
-		subject + "なんやて",
-		subject + "ええやん",
-		subject + "すんごい",
-
-		predicate + "なの❤",
+	ending := []string{
+		predicate + "だよ",
 		predicate + "かも",
 		predicate + "らしい",
 		predicate + "かな",
-		predicate + "好き",
-		predicate + "マジで",
-
-		subject + "だと思う",
-		subject + "なんだよね",
-		subject + "もある",
-		subject + "で草",
-		subject + "なの？",
-		subject + "かもしれない",
-
-		subject + "って" + predicate + "やねん",
-		subject + "は" + predicate + "らしい",
-		subject + "も" + predicate + "かな",
 	}
+	switch rand.Intn(3) {
 
-	return patterns[rand.Intn(len(patterns))]
+	case 0:
+		return simple[rand.Intn(len(simple))]
+
+	case 1:
+		return join[rand.Intn(len(join))]
+
+	default:
+		return ending[rand.Intn(len(ending))]
+	}
 }
