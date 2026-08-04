@@ -505,7 +505,7 @@ func generateMemoryPost() string {
 					p2 = pairs[rand.Intn(len(pairs))]
 				}
 
-				post := p1.Key + " " + p2.Value
+				post := buildSentence(p1.Key, p2.Value)
 
 				mutterUsage[p1.Key]++
 				mutterUsage[p2.Value]++
@@ -536,7 +536,7 @@ func generateMemoryPost() string {
 		if len(pairs) > 0 {
 			p := pairs[rand.Intn(len(pairs))]
 
-			post := p.Key + " " + p.Value
+			post := buildSentence(p.Key, p.Value)
 
 			slog.Info("generated pair post",
 				slog.String("post", post),
@@ -578,15 +578,24 @@ func generateMemoryPost() string {
 		selected = append(selected, w)
 	}
 
-	post := strings.Join(selected, " ")
-	for _, word := range words[:count] {
-		mutterUsage[word]++
+	if len(selected) >= 2 {
+		post := buildSentence(selected[0], selected[1])
+
+		slog.Info("generated memory post",
+			slog.String("post", post),
+		)
+
+		return post
 	}
+
+	post := selected[0]
+
 	slog.Info("generated memory post",
 		slog.String("post", post),
 	)
 
 	return post
+
 }
 func pickWord(words []string) string {
 	if len(words) == 0 {
