@@ -400,100 +400,15 @@ func createReply(text string) string {
 			return addEmoji("わかった！")
 		}
 	}
-
-	memoryMu.RLock()
-	slog.Info("memory count", slog.Int("count", len(memories)))
-	var memory Memory
-	var matchedKey string
-	ok := false
-
-	for key, m := range memories {
-		slog.Info("checking",
-			slog.String("key", key),
-			slog.String("text", text),
-		)
-		slog.Info("memory count", slog.Int("count", len(memories)))
-		if strings.Contains(text, key) {
-
-			// 最近返信した記憶は使わない
-			if !m.LastReplyAt.IsZero() &&
-				time.Since(m.LastReplyAt) < 5*time.Minute {
-
-				slog.Info("skip recent reply",
-					slog.String("key", key),
-				)
-				continue
-			}
-
-			slog.Info("matched")
-			memory = m
-			matchedKey = key
-			ok = true
-			break
-		}
+	reply := replyFromMemory(text)
+	if reply != "" {
+		return reply
 	}
-
-	memoryMu.RUnlock()
-	if ok {
-		if time.Since(memory.LearnedAt) > 10*24*time.Hour {
-			memoryMu.Lock()
-			delete(memories, matchedKey)
-			memoryMu.Unlock()
-			ok = false
-		}
-	}
-
-	if ok {
-
-		// 10%はテンプレ返信
-		if rand.Intn(100) < 10 {
-
-			switch rand.Intn(5) {
-			case 0:
-				return addEmoji("おお")
-			case 1:
-				return addEmoji("へぇ～")
-			case 2:
-				return addEmoji("なるほど")
-			case 3:
-				return addEmoji("そうなんだ")
-			default:
-				return addEmoji("だせいもそう思う")
-			}
-		}
-
-		// 90%は記憶を返す
-		memoryMu.Lock()
-		memory.LastReplyAt = time.Now()
-		memories[matchedKey] = memory
-		memoryMu.Unlock()
-
-		slog.Info("returning", slog.String("value", memory.Value))
-		return addEmoji(memory.Value)
+	reply = replyFromTemplate(text)
+	if reply != "" {
+		return reply
 	}
 	switch {
-
-	case strings.Contains(text, "こんにちは"):
-		return addEmoji(randomReply(
-			"はろー",
-			"おお",
-			"んー？",
-			"はい",
-		))
-
-	case strings.Contains(text, "おはよう"):
-		return addEmoji(randomReply(
-			"おはよう",
-			"おお",
-			"はろー",
-		))
-
-	case strings.Contains(text, "こんばんは"):
-		return addEmoji(randomReply(
-			"こんばんは",
-			"わかる",
-			"おお",
-		))
 
 	case strings.Contains(text, "おやすみ"):
 		return addEmoji(randomReply(
