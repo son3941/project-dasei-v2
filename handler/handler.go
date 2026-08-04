@@ -138,9 +138,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	)
 	stamps, err := h.apiClient.GetStamps(
 		authCtx,
-		&application_apiv1.GetStampsRequest{
-			CommunityIds: []string{h.communityID},
-		},
+		&application_apiv1.GetStampsRequest{},
 	)
 	h.logger.Info("official stamp sets",
 		slog.Int("count", len(stamps.OfficialStampSets)),
