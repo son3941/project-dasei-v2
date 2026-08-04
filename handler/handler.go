@@ -142,7 +142,9 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 			CommunityIds: []string{h.communityID},
 		},
 	)
-
+	h.logger.Info("official stamp sets",
+		slog.Int("count", len(stamps.OfficialStampSets)),
+	)
 	if err != nil {
 		slog.Error("GetStamps failed",
 			slog.String("error", err.Error()),
@@ -167,7 +169,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	if len(stamps.CommunityStampSets) > 0 &&
 		len(stamps.CommunityStampSets[0].Stamps) > 0 {
 
-		set := stamps.CommunityStampSets[0]
+		set := stamps.CommunityStampSets[rand.Intn(len(stamps.CommunityStampSets))]
 		stamp := set.Stamps[rand.Intn(len(set.Stamps))]
 
 		slog.Info("using stamp",
