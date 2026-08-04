@@ -7,6 +7,17 @@ import (
 
 func buildSentence(subject, predicate string) string {
 	predicate = strings.TrimSpace(predicate)
+	// predicate が助詞で始まるなら、そのまま繋ぐ
+	if strings.HasPrefix(predicate, "は") ||
+		strings.HasPrefix(predicate, "が") ||
+		strings.HasPrefix(predicate, "を") ||
+		strings.HasPrefix(predicate, "に") ||
+		strings.HasPrefix(predicate, "で") ||
+		strings.HasPrefix(predicate, "って") ||
+		strings.HasPrefix(predicate, "も") {
+
+		return subject + predicate
+	}
 	// 文章っぽいものはそのまま返す
 	if strings.Contains(subject, " ") ||
 		strings.Contains(subject, "、") ||
