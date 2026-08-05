@@ -34,7 +34,7 @@ func crazyWords() []string {
 func createCrazyMutter(post string) string {
 
 	// 40%だけ荒ぶる
-	if rand.Intn(100) >= 40 {
+	if rand.Intn(100) >= 30 {
 		return post
 	}
 
