@@ -101,6 +101,9 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	}
 	reply := createMutter("")
 	reply = randomStyle(reply)
+	if len([]rune(reply)) > 140 {
+		reply = string([]rune(reply)[:140])
+	}
 	if reply == "" {
 		return nil
 	}
