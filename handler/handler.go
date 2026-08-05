@@ -96,7 +96,7 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 	}
 }
 func (h *Handler) PostMutter(ctx context.Context) error {
-	if rand.Intn(100) < 20 {
+	if rand.Intn(100) >= PostChance {
 		return nil
 	}
 	reply := createMutter("")

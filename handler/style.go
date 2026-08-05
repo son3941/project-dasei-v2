@@ -7,16 +7,20 @@ import (
 
 func randomStyle(text string) string {
 
-	switch rand.Intn(100) {
+	mode := rand.Intn(100)
 
-	case 0, 1, 2:
-		return zombieStyle(text)
+	switch {
+	case mode < 60:
+		return text
 
-	case 3, 4, 5:
+	case mode < 70:
 		return ojisanStyle(text)
 
+	case mode < 80:
+		return zombieStyle(text)
+
 	default:
-		return text
+		return chaosStyle(text)
 	}
 }
 
@@ -47,9 +51,8 @@ func ojisanStyle(text string) string {
 
 	text = strings.ReplaceAll(text, "ね", "ネ😊")
 	text = strings.ReplaceAll(text, "よ", "ヨ😆")
-	text = strings.ReplaceAll(text, "カナ", "かな❓")
+	text = strings.ReplaceAll(text, "かな", "かな❓")
 	text = strings.ReplaceAll(text, "です", "ですヨ😊")
-	text = strings.ReplaceAll(text, "！", "❗🤣")
 
 	endings := []string{
 		"",
@@ -65,21 +68,68 @@ func ojisanStyle(text string) string {
 	if rand.Intn(100) < 30 {
 		text += "\n今日も頑張ろうネ😊"
 	}
-	greetings := []string{
-		"",
-		"お疲れ様😊\n",
-		"やっほー😆\n",
-		"元気かナ❓😊\n",
-	}
 
-	endings = []string{
-		"",
-		"\n今日も頑張ろうネ😊",
-		"\n無理しちゃダメだヨ🤣",
-		"\nまた話そうネ✨",
-		"\n返信待ってるヨ😆",
+	return text
+}
+func chaosStyle(text string) string {
+
+	mode := rand.Intn(100)
+
+	switch {
+
+	// 英語 30%
+	case mode < 30:
+
+		english := []string{
+			"Stay strong 💜🩵",
+			"Amazing ❤️",
+			"Good 👍",
+			"Nice work 🦋",
+			"Beautiful 💙",
+			"WoW",
+		}
+
+		return english[rand.Intn(len(english))]
+
+	// 日本語 30%
+	case mode < 60:
+
+		japanese := []string{
+			"私は好きです",
+			"とても美味",
+			"よく書かれています",
+			"それはどうですか？",
+			"最高ですか",
+			"それはとてもありがとう",
+		}
+
+		return japanese[rand.Intn(len(japanese))]
+
+	// 他言語 20%
+	case mode < 80:
+
+		foreign := []string{
+			"Gracias 💜",
+			"Bonjour 🦋",
+			"Merci ❤️",
+			"Ciao 😊",
+			"Excelente 💙",
+		}
+
+		return foreign[rand.Intn(len(foreign))]
+
+	// 絵文字だけ 20%
+	default:
+
+		emoji := []string{
+			"🦋💜🩵❤️",
+			"🥺😭💙",
+			"😂😂😂",
+			"🍆🍆🍆",
+			"🙏✨",
+			"👀🔥",
+		}
+
+		return emoji[rand.Intn(len(emoji))]
 	}
-	return greetings[rand.Intn(len(greetings))] +
-		text +
-		endings[rand.Intn(len(endings))]
 }
