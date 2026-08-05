@@ -135,11 +135,20 @@ func ClearMemories() error {
 	}
 
 	_, err := db.Exec(`
-DELETE FROM memories
+DELETE FROM memories;
+DELETE FROM posts;
 `)
+	if err != nil {
+		return err
+	}
 
-	return err
+	memoryMu.Lock()
+	memories = make(map[string]Memory)
+	memoryMu.Unlock()
+
+	return nil
 }
+
 func SavePost(text string) error {
 	if err := initDB(); err != nil {
 		return err
