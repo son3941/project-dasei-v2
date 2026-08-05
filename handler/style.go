@@ -233,7 +233,6 @@ func ojisanTranslate(text string) string {
 
 		`%sチャン😊💕
 
-%s
 
 %s
 

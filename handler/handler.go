@@ -381,12 +381,19 @@ func createReply(text string) string {
 
 		return "全部忘れたよ😊"
 	}
-	slog.Info("createReply", slog.String("text", text))
-	// 10%の確率で返信しない
-	if rand.Intn(100) >= 90 {
-		slog.Info("skip reply")
-		return ""
+	// 名前を呼ばれたら必ず返信
+	if strings.Contains(text, "だせい") || strings.Contains(text, "惰性") {
+		slog.Info("force reply")
+
+		// 返信しない判定はスキップ
+	} else {
+		// 10%の確率で返信しない
+		if rand.Intn(100) >= 90 {
+			slog.Info("skip reply")
+			return ""
+		}
 	}
+
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		body := strings.TrimPrefix(text, "だせい、")
 
