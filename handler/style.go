@@ -1,30 +1,32 @@
 package handler
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 )
 
 func randomStyle(text string) string {
 
-	mode := rand.Intn(100)
+	r := rand.Intn(100)
 
 	switch {
-	case mode < 60:
+
+	case r < 60:
 		return text
 
-	case mode < 70:
-		return ojisanStyle(text)
+	case r < 70:
+		return ojisanTranslate(text)
 
-	case mode < 80:
-		return zombieStyle(text)
+	case r < 80:
+		return zombieTranslate(text)
 
 	default:
-		return chaosStyle(text)
+		return chaosTranslate(text)
 	}
 }
 
-func zombieStyle(text string) string {
+func zombieTranslate(text string) string {
 
 	prefix := []string{
 		"これ",
@@ -47,31 +49,98 @@ func zombieStyle(text string) string {
 		suffix[rand.Intn(len(suffix))]
 }
 
-func ojisanStyle(text string) string {
+func ojisanTranslate(text string) string {
 
-	text = strings.ReplaceAll(text, "ね", "ネ😊")
-	text = strings.ReplaceAll(text, "よ", "ヨ😆")
-	text = strings.ReplaceAll(text, "かな", "かな❓")
-	text = strings.ReplaceAll(text, "です", "ですヨ😊")
+	body := text
 
-	endings := []string{
-		"",
-		"😊",
-		"🤣",
-		"✨",
-		"👍",
-		"ナンチャッテ！",
+	body = strings.ReplaceAll(body, "！", "！😊")
+	body = strings.ReplaceAll(body, "?", "❓")
+	body = strings.ReplaceAll(body, "？", "❓")
+	body = strings.ReplaceAll(body, "かな", "かナ😊")
+	body = strings.ReplaceAll(body, "だよ", "だヨ😊")
+	body = strings.ReplaceAll(body, "です", "だヨ😊")
+
+	jokes := []string{
+		"オジサンも今日はゴロゴロしてたヨ🤣",
+		"最近暑いネ〜🥵",
+		"ちゃんと寝るんだヨ😪",
+		"ラーメン🍜食べたくなっちゃったヨ🤣",
+		"オジサンも眠いヨ😪",
+		"今日も仕事だったヨ🤣",
+		"アイス🍨食べたいネ😊",
+		"カレー🍛は飲み物だヨ🤣",
+		"水分補給🥤忘れないようにネ😊",
+		"無理しちゃダメだヨ✨",
 	}
 
-	text += endings[rand.Intn(len(endings))]
-
-	if rand.Intn(100) < 30 {
-		text += "\n今日も頑張ろうネ😊"
+	closings := []string{
+		"返信待ってるヨ📩💕",
+		"またお話しようネ😊",
+		"今日も頑張ろうネ✨",
+		"ゆっくり休むんだヨ😪",
+		"ナンチャッテ🤣",
 	}
 
-	return text
+	templates := []string{
+
+		`%sチャン😊💕
+
+%s
+
+%s
+
+%s
+ナンチャッテ🤣`,
+
+		`やっほ〜😊💕
+
+%s
+
+%s
+
+オジサン心配してるヨ🥺
+
+%s`,
+
+		`今日もお疲れ様😊
+
+%s
+
+%s
+
+%s💕`,
+
+		`元気かナ😊❓
+
+%s
+
+%s
+
+%s✨`,
+
+		`%s😊
+
+最近どうかナ❓🤣
+
+%s
+
+%s
+
+返信くれると嬉しいナ💕`,
+	}
+
+	template := templates[rand.Intn(len(templates))]
+	joke := jokes[rand.Intn(len(jokes))]
+	closing := closings[rand.Intn(len(closings))]
+
+	return fmt.Sprintf(
+		template,
+		body,
+		joke,
+		closing,
+	)
 }
-func chaosStyle(text string) string {
+func chaosTranslate(text string) string {
 
 	mode := rand.Intn(100)
 
