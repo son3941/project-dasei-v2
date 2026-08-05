@@ -28,27 +28,175 @@ func randomStyle(text string) string {
 
 func zombieTranslate(text string) string {
 
-	prefix := []string{
-		"これ",
-		"いや",
-		"ちなみに",
-		"普通に",
-		"自分も",
+	mode := rand.Intn(100)
+
+	switch {
+
+	// 英語
+	case mode < 30:
+		return englishZombie()
+
+	// 日本語
+	case mode < 60:
+		return japaneseZombie()
+
+	// 他言語
+	case mode < 80:
+		return foreignZombie()
+
+	// 絵文字だけ
+	default:
+		return emojiZombie()
+	}
+}
+func zombieEnglish() string {
+	phrases := []string{
+		"Stay strong 🩵💜❤️",
+		"Keep going ❤️🩵",
+		"Amazing ✨",
+		"Beautiful 😊",
+		"Excellent 💙",
+		"Well done 🦋",
+		"Nice 😍",
+		"Great job 💜",
+		"Fantastic ❤️",
+		"Wonderful ✨",
+		"Love it 🩵",
+		"So good 💙",
+	}
+	return phrases[rand.Intn(len(phrases))]
+}
+func zombieJapanese() string {
+	phrases := []string{
+		"最高です😊",
+		"応援しています🩵",
+		"素敵ですね✨",
+		"いいですね😊",
+		"そう思います💜",
+		"わかります😊",
+		"本当にそう✨",
+		"これは良い❤️",
+		"ありがとうございます🩵",
+		"お疲れ様です😊",
+		"すばらしい✨",
+		"いい感じですね💙",
 	}
 
-	suffix := []string{
-		"🥺",
-		"😭",
-		"🍆",
-		"www",
-		"なんよ",
-	}
-
-	return prefix[rand.Intn(len(prefix))] +
-		text +
-		suffix[rand.Intn(len(suffix))]
+	return phrases[rand.Intn(len(phrases))]
 }
 
+func englishZombie() string {
+
+	posts := []string{
+		"Stay strong 💜🩵❤️",
+		"Amazing 🦋💜",
+		"Beautiful ❤️🩵",
+		"Wonderful 🌸💜",
+		"Keep smiling 😊💙",
+		"Nice 👍💜",
+		"Love this ❤️",
+		"Excellent 🩵🦋",
+		"Very good 💜✨",
+		"Respect ❤️👏",
+	}
+
+	return posts[rand.Intn(len(posts))]
+}
+func japaneseZombie() string {
+
+	posts := []string{
+		"応援しています😊",
+		"素晴らしいですね✨",
+		"私もそう思います💜",
+		"最高ですね👏",
+		"良いですね😊",
+		"素敵です❤️",
+		"とても良いです✨",
+		"感動しました🥺",
+	}
+
+	return posts[rand.Intn(len(posts))]
+}
+func foreignZombie() string {
+
+	posts := []string{
+		"Muy bien ❤️",
+		"Excelente 💜",
+		"Fantástico 🩵",
+		"Bravo 👏",
+		"Très bien ❤️",
+		"Magnifique 💜",
+		"Bellissimo 🩵",
+		"Incredible ❤️",
+		"Ottimo 💙",
+		"Perfecto 🦋",
+	}
+
+	return posts[rand.Intn(len(posts))]
+}
+func emojiZombie() string {
+
+	posts := []string{
+		"🦋🩵💜❤️",
+		"😭🙏💜",
+		"👏👏👏",
+		"🔥🔥🔥",
+		"💜🩵💜🩵",
+		"🥺🥺🥺",
+		"❤️❤️❤️",
+		"✨✨✨",
+		"🤣🤣🤣",
+		"👍💙🩵",
+	}
+
+	return posts[rand.Intn(len(posts))]
+}
+func zombieReply(original string) string {
+
+	word := pickWord(strings.Fields(original))
+	if word == "" {
+		return zombieTranslate("")
+	}
+
+	r := rand.Intn(100)
+
+	switch {
+
+	// 70%
+	case r < 70:
+		return word
+
+	// 20%
+	case r < 90:
+
+		emojis := []string{
+			"❤️",
+			"💜",
+			"🩵",
+			"🦋",
+			"✨",
+			"🙏",
+			"🥺",
+		}
+
+		return word + emojis[rand.Intn(len(emojis))]
+
+	// 10%
+	default:
+
+		english := []string{
+			"Stay strong",
+			"Amazing",
+			"Beautiful",
+			"Excellent",
+			"Wonderful",
+			"Respect",
+			"Nice",
+		}
+
+		return english[rand.Intn(len(english))] + "\n" + word
+	}
+}
 func ojisanTranslate(text string) string {
 
 	body := text

@@ -407,10 +407,31 @@ func createReply(text string) string {
 	if reply != "" {
 		return reply
 	}
+
 	reply = replyFromTemplate(text)
 	if reply != "" {
 		return reply
 	}
+
+	// 返信の10%だけインプレゾンビ
+	// 返信の10%だけインプレゾンビ
+	if rand.Intn(100) < 10 {
+
+		mode := rand.Intn(100)
+
+		switch {
+
+		case mode < 30:
+			return zombieEnglish()
+
+		case mode < 60:
+			return zombieJapanese()
+
+		default:
+			return zombieReply(text)
+		}
+	}
+
 	switch {
 
 	case strings.Contains(text, "おやすみ"):
