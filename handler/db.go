@@ -129,7 +129,17 @@ FROM memories
 
 	return memories, nil
 }
+func ClearMemories() error {
+	if err := initDB(); err != nil {
+		return err
+	}
 
+	_, err := db.Exec(`
+DELETE FROM memories
+`)
+
+	return err
+}
 func SavePost(text string) error {
 	if err := initDB(); err != nil {
 		return err

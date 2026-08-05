@@ -368,6 +368,19 @@ func rememberKnowledge(text string) {
 	}
 }
 func createReply(text string) string {
+	// 管理コマンド
+	if strings.TrimSpace(text) == "だせい リセット実行" {
+
+		memoryMu.Lock()
+		memories = make(map[string]Memory)
+		memoryMu.Unlock()
+
+		if err := ClearMemories(); err != nil {
+			return "リセット失敗💦"
+		}
+
+		return "全部忘れたよ😊"
+	}
 	slog.Info("createReply", slog.String("text", text))
 	// 10%の確率で返信しない
 	if rand.Intn(100) >= 90 {
