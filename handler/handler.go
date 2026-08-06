@@ -69,6 +69,9 @@ var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
 
+	nicknames  = make(map[string]string)
+	nicknameMu sync.RWMutex
+
 	mutterUsage = make(map[string]int)
 
 	teaches = make(map[string]string)
@@ -446,6 +449,12 @@ func rememberKnowledge(text string) {
 	}
 }
 func createReply(text string) string {
+	nicknameMu.RLock()
+	for name, nickname := range nicknames {
+		text = strings.ReplaceAll(text, name+"さん", nickname)
+		text = strings.ReplaceAll(text, name, nickname)
+	}
+	nicknameMu.RUnlock()
 	slog.Info("received text",
 		slog.String("text", text),
 	)
@@ -474,7 +483,28 @@ func createReply(text string) string {
 			return ""
 		}
 	}
+	if strings.HasPrefix(text, "だせい、") &&
+		strings.Contains(text, "さんは") &&
+		strings.Contains(text, "だよ") {
 
+		body := strings.TrimPrefix(text, "だせい、")
+
+		parts := strings.SplitN(body, "さんは", 2)
+		if len(parts) == 2 {
+
+			name := strings.TrimSpace(parts[0])
+			name = strings.TrimSuffix(name, "さん")
+
+			nickname := strings.TrimSuffix(parts[1], "だよ")
+			nickname = strings.TrimSpace(nickname)
+
+			nicknameMu.Lock()
+			nicknames[name] = nickname
+			nicknameMu.Unlock()
+
+			return addEmoji("わかった！")
+		}
+	}
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		slog.Info("teach pattern detected")
 		body := strings.TrimPrefix(text, "だせい、")
@@ -591,6 +621,16 @@ func createReply(text string) string {
 			"えーとえーと",
 		))
 	}
+}
+func nicknameOf(name string) string {
+	nicknameMu.RLock()
+	defer nicknameMu.RUnlock()
+
+	if nickname, ok := nicknames[name]; ok {
+		return nickname
+	}
+
+	return name
 }
 func generateMemoryPost() string {
 	memoryMu.RLock()

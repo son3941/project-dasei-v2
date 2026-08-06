@@ -5,6 +5,8 @@ import (
 )
 
 func memberPhrase(name string) string {
+	name = nicknameOf(name)
+
 	switch rand.Intn(8) {
 
 	case 0:
