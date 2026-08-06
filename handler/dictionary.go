@@ -53,10 +53,24 @@ func splitWords(text string) []string {
 			text = strings.TrimPrefix(text, longest)
 			continue
 		}
-
+for _, p := range particles {
+    if strings.HasPrefix(text, p) {
+        text = strings.TrimPrefix(text, p)
+        goto NEXT
+    }
+}
 		r := []rune(text)
-		text = string(r[1:])
-	}
 
+        end := len(r)
+        if end > 6 {
+            end = 6
+        }
+
+        unknown := string(r[:end])
+        words = append(words, unknown)
+
+        text = string(r[end:])
+	}
+NEXT:
 	return words
 }
