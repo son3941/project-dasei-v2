@@ -74,3 +74,11 @@ for _, p := range particles {
 NEXT:
 	return words
 }
+func isParticle(word string) bool {
+    for _, p := range particles {
+        if word == p {
+            return true
+        }
+    }
+    return false
+}

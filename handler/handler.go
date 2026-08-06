@@ -338,8 +338,8 @@ func rememberKnowledge(text string) {
 
 		pos := features[0]
 
-		// 名詞だけ覚える
-		if pos == "名詞" {
+		switch pos {
+		case "名詞", "形容詞", "副詞", "動詞":
 			words = append(words, surface)
 		}
 	}
