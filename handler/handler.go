@@ -223,9 +223,13 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if !shouldReply {
 			return nil
 		}
+		slog.Info("before GenerateReply")
 		reply := GenerateReply(
 			text,
 			isMention,
+		)
+		slog.Info("after GenerateReply",
+			slog.String("reply", reply),
 		)
 		if reply == "" {
 			return nil
