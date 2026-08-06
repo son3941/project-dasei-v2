@@ -379,7 +379,7 @@ func createReply(text string) string {
 	)
 	// 管理コマンド
 	if strings.TrimSpace(text) == "だせい リセット実行" {
-
+		slog.Info("RESET COMMAND RECEIVED")
 		memoryMu.Lock()
 		memories = make(map[string]Memory)
 		memoryMu.Unlock()
