@@ -170,8 +170,16 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return nil
 		}
 
-		// リセットコマンドは学習しない
+		// リセットコマンド
 		if strings.TrimSpace(text) == "だせい リセット実行" {
+
+			if err := ClearMemories(); err != nil {
+				slog.Error("ClearMemories failed",
+					slog.String("error", err.Error()),
+				)
+			} else {
+				slog.Info("memories cleared")
+			}
 
 			return nil
 		}
