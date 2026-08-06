@@ -195,6 +195,15 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if isNGMember(displayName) {
 			return nil
 		}
+		if isNGMember(displayName) {
+			return nil
+		}
+
+		// 「だせい」だけの呼びかけは学習しない
+		if strings.TrimSpace(text) == "だせい" {
+			return nil
+		}
+
 		rememberKnowledge(text)
 
 		if err := SavePost(text); err != nil {
