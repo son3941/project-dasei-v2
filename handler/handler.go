@@ -209,7 +209,13 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return nil
 		}
 
-		rememberKnowledge(text)
+		if !(strings.HasPrefix(text, "だせい、") &&
+			strings.Contains(text, "は") &&
+			strings.Contains(text, "だよ") &&
+			!strings.Contains(text, "さんは")) {
+
+			rememberKnowledge(text)
+		}
 
 		if err := SavePost(text); err != nil {
 			slog.Error("SavePost failed", slog.String("error", err.Error()))
