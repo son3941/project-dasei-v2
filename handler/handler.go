@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
@@ -15,6 +16,12 @@ import (
 	modelv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/model/v1"
 	application_apiv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/service/application_api/v1"
 )
+
+var fixedWords = []string{
+	"だせい",
+	"ハムちゃん",
+	"そらもよう",
+}
 
 type Memory struct {
 	Value       string
@@ -326,6 +333,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func rememberKnowledge(text string) {
+	for _, w := range fixedWords {
+		text = strings.ReplaceAll(text, w, " "+w+" ")
+	}
 	slog.Info("rememberKnowledge called")
 	tokens := wakati.Tokenize(text)
 
@@ -348,14 +358,36 @@ func rememberKnowledge(text string) {
 		)
 	}
 	var words []string
-
+	for _, w := range fixedWords {
+		if strings.Contains(text, w) {
+			words = append(words, w)
+		}
+	}
 	for _, token := range tokens {
 		surface := strings.TrimSpace(token.Surface)
 
 		if surface == "" {
 			continue
 		}
+		// 1文字は学習しない（絵文字・顔文字は除外）
+		runes := []rune(surface)
 
+		if len(runes) == 1 {
+			isFixed := false
+
+			for _, w := range fixedWords {
+				if surface == w {
+					isFixed = true
+					break
+				}
+			}
+
+			if !isFixed &&
+				!unicode.IsSymbol(runes[0]) &&
+				!unicode.IsPunct(runes[0]) {
+				continue
+			}
+		}
 		features := token.Features()
 
 		if len(features) == 0 {
