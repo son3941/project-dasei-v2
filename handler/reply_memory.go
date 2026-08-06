@@ -58,5 +58,17 @@ func replyFromMemory(text string) string {
 		}
 	}
 
-	return addEmoji(memory.Value)
+	reply := memory.Value
+
+	memoryMu.RLock()
+	if next, ok := memories[reply]; ok {
+		reply += next.Value
+
+		if next2, ok := memories[next.Value]; ok {
+			reply += next2.Value
+		}
+	}
+	memoryMu.RUnlock()
+
+	return addEmoji(reply)
 }
