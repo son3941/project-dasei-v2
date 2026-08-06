@@ -338,7 +338,6 @@ func rememberKnowledge(text string) {
 
 	for _, w := range fixedWords {
 		if strings.Contains(text, w) {
-			words = append(words, w)
 			text = strings.ReplaceAll(text, w, " ")
 		}
 	}
