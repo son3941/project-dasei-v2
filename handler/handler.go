@@ -373,6 +373,9 @@ func rememberKnowledge(text string) {
 	}
 }
 func createReply(text string) string {
+	slog.Info("received text",
+		slog.String("text", text),
+	)
 	// 管理コマンド
 	if strings.TrimSpace(text) == "だせい リセット実行" {
 
