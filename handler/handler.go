@@ -168,6 +168,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 
 		// リセットコマンドは学習しない
 		if strings.TrimSpace(text) == "だせい リセット実行" {
+
 			return nil
 		}
 
