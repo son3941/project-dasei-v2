@@ -630,135 +630,43 @@ func nicknameOf(name string) string {
 	return name
 }
 func generateMemoryPost() string {
-	memoryMu.RLock()
-	defer memoryMu.RUnlock()
-	mode := rand.Intn(100)
-	if len(memories) == 0 {
+
+	learnedWordsMu.RLock()
+	defer learnedWordsMu.RUnlock()
+
+	if len(learnedWords) == 0 {
 		return ""
 	}
 
-	// 40%は覚えたペアをそのまま使う
-	if mode < 40 {
-		// 30%はペアを少し混ぜる
-		if mode < 70 {
-
-			type pair struct {
-				Key   string
-				Value string
-			}
-
-			var pairs []pair
-
-			for key, mem := range memories {
-				if mem.Value != "" {
-					pairs = append(pairs, pair{
-						Key:   key,
-						Value: mem.Value,
-					})
-				}
-			}
-
-			if len(pairs) >= 2 {
-
-				p1 := pairs[rand.Intn(len(pairs))]
-				p2 := pairs[rand.Intn(len(pairs))]
-
-				// 同じペアならもう一度選ぶ
-				for len(pairs) > 1 && p1.Key == p2.Key {
-					p2 = pairs[rand.Intn(len(pairs))]
-				}
-
-				post := buildSentence(p1.Key, p2.Value)
-
-				mutterUsage[p1.Key]++
-				mutterUsage[p2.Value]++
-
-				slog.Info("generated mixed post",
-					slog.String("post", post),
-				)
-
-				return post
-			}
-		}
-		type pair struct {
-			Key   string
-			Value string
-		}
-
-		var pairs []pair
-
-		for key, mem := range memories {
-			if mem.Value != "" {
-				pairs = append(pairs, pair{
-					Key:   key,
-					Value: mem.Value,
-				})
-			}
-		}
-
-		if len(pairs) > 0 {
-			p := pairs[rand.Intn(len(pairs))]
-
-			post := buildSentence(p.Key, p.Value)
-
-			slog.Info("generated pair post",
-				slog.String("post", post),
-			)
-
-			return post
-		}
+	words := make([]string, 0, len(learnedWords))
+	for word := range learnedWords {
+		words = append(words, word)
 	}
 
-	// ここから下は今までどおり
-	var words []string
+	if len(words) == 1 {
+		post := words[0]
 
-	for key, mem := range memories {
-		words = append(words, key)
-
-		if mem.Value != "" {
-			words = append(words, mem.Value)
-		}
-	}
-
-	count := 2 + rand.Intn(2)
-
-	if count > len(words) {
-		count = len(words)
-	}
-
-	selected := make([]string, 0, count)
-	used := make(map[string]bool)
-
-	for len(selected) < count {
-
-		w := pickWord(words)
-
-		if used[w] {
-			continue
-		}
-
-		used[w] = true
-		selected = append(selected, w)
-	}
-
-	if len(selected) >= 2 {
-		post := buildSentence(selected[0], selected[1])
-
-		slog.Info("generated memory post",
+		slog.Info("generated learned post",
 			slog.String("post", post),
 		)
 
 		return post
 	}
 
-	post := selected[0]
+	w1 := words[rand.Intn(len(words))]
+	w2 := words[rand.Intn(len(words))]
 
-	slog.Info("generated memory post",
+	for len(words) > 1 && w1 == w2 {
+		w2 = words[rand.Intn(len(words))]
+	}
+
+	post := buildSentence(w1, w2)
+
+	slog.Info("generated learned post",
 		slog.String("post", post),
 	)
 
 	return post
-
 }
 func pickWord(words []string) string {
 	if len(words) == 0 {
@@ -929,4 +837,20 @@ func addEmoji(text string) string {
 	}
 
 	return text
+}
+func randomLearnedWord() string {
+
+	learnedWordsMu.RLock()
+	defer learnedWordsMu.RUnlock()
+
+	if len(learnedWords) == 0 {
+		return ""
+	}
+
+	words := make([]string, 0, len(learnedWords))
+	for word := range learnedWords {
+		words = append(words, word)
+	}
+
+	return words[rand.Intn(len(words))]
 }
