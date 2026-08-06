@@ -333,8 +333,14 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	return nil
 }
 func rememberKnowledge(text string) {
+
+	var words []string
+
 	for _, w := range fixedWords {
-		text = strings.ReplaceAll(text, w, " "+w+" ")
+		if strings.Contains(text, w) {
+			words = append(words, w)
+			text = strings.ReplaceAll(text, w, " ")
+		}
 	}
 	slog.Info("rememberKnowledge called")
 	tokens := wakati.Tokenize(text)
@@ -357,12 +363,7 @@ func rememberKnowledge(text string) {
 			slog.Any("feature", features),
 		)
 	}
-	var words []string
-	for _, w := range fixedWords {
-		if strings.Contains(text, w) {
-			words = append(words, w)
-		}
-	}
+
 	for _, token := range tokens {
 		surface := strings.TrimSpace(token.Surface)
 		skip := false
