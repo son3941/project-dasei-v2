@@ -69,6 +69,9 @@ var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
 
+	learnedWords   = make(map[string]bool)
+	learnedWordsMu sync.RWMutex
+
 	nicknames  = make(map[string]string)
 	nicknameMu sync.RWMutex
 
@@ -431,37 +434,15 @@ func rememberKnowledge(text string) {
 			words = append(words, surface)
 		}
 	}
-	for i := 0; i < len(words)-1; i++ {
+	for _, word := range words {
 
-		key := words[i]
-		value := words[i+1]
+		learnedWordsMu.Lock()
+		learnedWords[word] = true
+		learnedWordsMu.Unlock()
 
-		memoryMu.Lock()
-		memories[key] = Memory{
-			Value:     value,
-			LearnedAt: time.Now(),
-		}
-		memoryMu.Unlock()
-		exists := false
-		for _, w := range fixedWords {
-			if w == key {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			fixedWords = append(fixedWords, key)
-		}
-		if err := SaveMemory(key, value); err != nil {
-			slog.Error("SaveMemory failed",
-				slog.String("error", err.Error()),
-			)
-		} else {
-			slog.Info("SaveMemory success",
-				slog.String("key", key),
-				slog.String("value", value),
-			)
-		}
+		slog.Info("learned word",
+			slog.String("word", word),
+		)
 	}
 }
 func createReply(text string) string {
