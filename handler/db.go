@@ -134,10 +134,14 @@ func ClearMemories() error {
 		return err
 	}
 
-	_, err := db.Exec(`
+	result, err := db.Exec(`
 DELETE FROM memories;
 DELETE FROM posts;
 `)
+	rows, _ := result.RowsAffected()
+	slog.Info("ClearMemories",
+		slog.Int64("rows", rows),
+	)
 	if err != nil {
 		return err
 	}
