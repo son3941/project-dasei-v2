@@ -162,6 +162,10 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
 
+		slog.Info("received text",
+			slog.String("text", text),
+		)
+
 		if isNGWord(text) {
 			return nil
 		}
