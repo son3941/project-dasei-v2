@@ -365,7 +365,18 @@ func rememberKnowledge(text string) {
 	}
 	for _, token := range tokens {
 		surface := strings.TrimSpace(token.Surface)
+		skip := false
 
+		for _, w := range fixedWords {
+			if strings.Contains(w, surface) && w != surface {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
 		if surface == "" {
 			continue
 		}
