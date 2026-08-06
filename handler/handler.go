@@ -424,6 +424,7 @@ func createReply(text string) string {
 	}
 
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
+		slog.Info("teach pattern detected")
 		body := strings.TrimPrefix(text, "だせい、")
 
 		parts := strings.SplitN(body, "は", 2)
