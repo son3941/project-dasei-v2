@@ -40,25 +40,32 @@ func buildSentence(subject, predicate string) string {
 		return subject + " " + predicate
 	}
 	simple := []string{
-		subject + "好き",
-		subject + "気になる",
-		subject + "ええね",
-		subject + "ゴイスー",
-		subject + "かな",
+		subject + "好き😊",
+		subject + "気になる🤔",
+		subject + "ええね👍",
+		subject + "ゴイスー😆",
+		subject + "かな？",
+		subject + "最高✨",
+		subject + "いい感じ😊",
+		subject + "アリだね👍",
 	}
 
 	join := []string{
-		subject + "は" + predicate,
-		subject + "も" + predicate,
-		subject + "って" + predicate,
-		subject + "で" + predicate,
+		subject + "は" + predicate + "だよ",
+		subject + "って" + predicate + "だよ",
+		subject + "も" + predicate + "だね",
+		subject + "で" + predicate + "らしい",
+		subject + "気になる😊",
+		subject + "最高😆",
+		subject + "好き💕",
+		subject + "いいね✨",
 	}
-
 	ending := []string{
 		predicate + "だよ",
 		predicate + "かも",
 		predicate + "らしい",
 		predicate + "かな",
+		predicate + "最高😊",
 	}
 	r := rand.Intn(100)
 
