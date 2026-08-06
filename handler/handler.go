@@ -423,7 +423,16 @@ func rememberKnowledge(text string) {
 			LearnedAt: time.Now(),
 		}
 		memoryMu.Unlock()
-
+		exists := false
+		for _, w := range fixedWords {
+			if w == key {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			fixedWords = append(fixedWords, key)
+		}
 		if err := SaveMemory(key, value); err != nil {
 			slog.Error("SaveMemory failed",
 				slog.String("error", err.Error()),
