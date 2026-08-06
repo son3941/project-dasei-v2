@@ -345,14 +345,24 @@ func rememberKnowledge(text string) {
 
 	var words []string
 
-	for _, w := range fixedWords {
-		if strings.Contains(text, w) {
-			text = strings.ReplaceAll(text, w, " ")
-		}
+	if strings.Contains(text, "さんは") &&
+		strings.Contains(text, "だよ") {
+		return
+	}
+
+	if strings.HasPrefix(text, "だせい、") &&
+		strings.Contains(text, "は") &&
+		strings.Contains(text, "だよ") {
+		return
 	}
 	slog.Info("rememberKnowledge called")
 	tokens := wakati.Tokenize(text)
-
+	for _, token := range tokens {
+		slog.Info("TOKEN",
+			slog.String("surface", token.Surface),
+			slog.Any("features", token.Features()),
+		)
+	}
 	for _, token := range tokens {
 		features := token.Features()
 
