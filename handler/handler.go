@@ -231,10 +231,10 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return nil
 		}
 
-		if !(strings.HasPrefix(text, "だせい、") &&
-			strings.Contains(text, "は") &&
-			strings.Contains(text, "だよ") &&
-			!strings.Contains(text, "さんは")) {
+		if !isNicknameCommand(text) &&
+			!(strings.HasPrefix(text, "だせい、") &&
+				strings.Contains(text, "は") &&
+				strings.Contains(text, "だよ")) {
 
 			rememberKnowledge(text)
 		}
@@ -510,6 +510,11 @@ func rememberKnowledge(text string) {
 		)
 	}
 }
+func isNicknameCommand(text string) bool {
+	return strings.HasPrefix(text, "だせい、") &&
+		strings.Contains(text, "さんは") &&
+		strings.Contains(text, "だよ")
+}
 func createReply(text string) string {
 	nicknameMu.RLock()
 	for name, nickname := range nicknames {
@@ -551,6 +556,10 @@ func createReply(text string) string {
 			nicknameMu.Lock()
 			nicknames[name] = nickname
 			nicknameMu.Unlock()
+
+			teachMu.Lock()
+			delete(teaches, name)
+			teachMu.Unlock()
 
 			return addEmoji("わかった！")
 		}
