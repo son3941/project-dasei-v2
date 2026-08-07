@@ -193,6 +193,18 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		// リセットコマンド
 		if strings.TrimSpace(text) == "だせい リセット実行" {
 
+			memoryMu.Lock()
+			memories = make(map[string]Memory)
+			memoryMu.Unlock()
+
+			learnedWordsMu.Lock()
+			learnedPairs = nil
+			learnedWordsMu.Unlock()
+
+			nicknameMu.Lock()
+			nicknames = make(map[string]string)
+			nicknameMu.Unlock()
+
 			if err := ClearMemories(); err != nil {
 				slog.Error("ClearMemories failed",
 					slog.String("error", err.Error()),
@@ -508,19 +520,7 @@ func createReply(text string) string {
 	slog.Info("received text",
 		slog.String("text", text),
 	)
-	// 管理コマンド
-	if strings.TrimSpace(text) == "だせい リセット実行" {
-		slog.Info("RESET COMMAND RECEIVED")
-		memoryMu.Lock()
-		memories = make(map[string]Memory)
-		memoryMu.Unlock()
 
-		if err := ClearMemories(); err != nil {
-			return "リセット失敗💦"
-		}
-
-		return "全部忘れたよ😊"
-	}
 	// 名前を呼ばれたら必ず返信
 	if strings.Contains(text, "だせい") || strings.Contains(text, "惰性") {
 		slog.Info("force reply")
