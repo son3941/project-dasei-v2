@@ -10,5 +10,10 @@ func randomMember() string {
 		return ""
 	}
 
-	return members[rand.Intn(len(members))]
+	names := make([]string, 0, len(members))
+	for _, name := range members {
+		names = append(names, name)
+	}
+
+	return names[rand.Intn(len(names))]
 }

@@ -32,12 +32,13 @@ type Memory struct {
 }
 
 var (
-	members   []string
+	members   map[string]string
 	membersMu sync.RWMutex
 )
 var wakati *tokenizer.Tokenizer
 
 func init() {
+	members = make(map[string]string)
 	var err error
 	wakati, err = tokenizer.New(ipa.Dict())
 	if err != nil {
@@ -217,10 +218,14 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		}
 
 		displayName := ""
+		userID := ""
 		if post.GetIssuer() != nil {
 			displayName = post.GetIssuer().GetDisplayName()
-			rememberMember(displayName)
+			userID = post.GetIssuer().GetUserId()
+
+			rememberMember(userID, displayName)
 		}
+
 		if displayName == "だせい" {
 			return nil
 		}
@@ -691,6 +696,9 @@ func nicknameOf(name string) string {
 
 	return name
 }
+func memberID(name string) string {
+	return name
+}
 func generateMemoryPost() string {
 
 	learnedWordsMu.RLock()
@@ -835,7 +843,7 @@ func isNGAccount(account string) bool {
 	}
 	return false
 }
-func rememberMember(name string) {
+func rememberMember(id, name string) {
 	name = strings.TrimSpace(name)
 	if isNGMember(name) {
 		return
@@ -845,17 +853,14 @@ func rememberMember(name string) {
 		return
 	}
 
+	if id == "" || name == "" {
+		return
+	}
+
 	membersMu.Lock()
 	defer membersMu.Unlock()
 
-	for _, m := range members {
-		if m == name {
-			return
-		}
-	}
-
-	members = append(members, name)
-	slog.Info("member remembered", slog.Any("members", members))
+	members[id] = name
 }
 func GenerateReply(text string, isMention bool) string {
 	return createReply(text)

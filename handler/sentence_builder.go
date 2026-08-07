@@ -78,12 +78,46 @@ func buildSentence(subject, predicate string) string {
 	switch {
 
 	case r < 60:
-		return join[rand.Intn(len(join))]
+		return pickGood(join)
 
 	case r < 85:
-		return ending[rand.Intn(len(ending))]
+		return pickGood(ending)
 
 	default:
-		return simple[rand.Intn(len(simple))]
+		return pickGood(simple)
 	}
+}
+func isBadEnding(s string) bool {
+	bad := []string{
+		"ちゃっ",
+		"だっ",
+		"て",
+		"で",
+		"を",
+		"は",
+		"が",
+		"に",
+		"と",
+		"も",
+		"へ",
+		"や",
+		"か",
+	}
+
+	for _, b := range bad {
+		if strings.HasSuffix(s, b) {
+			return true
+		}
+	}
+	return false
+}
+func pickGood(list []string) string {
+	for i := 0; i < 10; i++ {
+		s := list[rand.Intn(len(list))]
+		if !isBadEnding(s) {
+			return s
+		}
+	}
+
+	return list[rand.Intn(len(list))]
 }
