@@ -65,12 +65,15 @@ var (
 		"キンカン",
 	}
 )
+
+type LearnedPair struct {
+	Key   string
+	Value string
+}
+
 var (
 	memories = make(map[string]Memory)
 	memoryMu sync.RWMutex
-
-	learnedWords   = make(map[string]bool)
-	learnedWordsMu sync.RWMutex
 
 	nicknames  = make(map[string]string)
 	nicknameMu sync.RWMutex
@@ -79,6 +82,10 @@ var (
 
 	teaches = make(map[string]string)
 	teachMu sync.RWMutex
+)
+var (
+	learnedPairs   []LearnedPair
+	learnedWordsMu sync.RWMutex
 )
 
 // Handler implements event.EventHandler interface.
@@ -434,14 +441,20 @@ func rememberKnowledge(text string) {
 			words = append(words, surface)
 		}
 	}
-	for _, word := range words {
+	for i := 0; i < len(words)-1; i++ {
 
 		learnedWordsMu.Lock()
-		learnedWords[word] = true
+
+		learnedPairs = append(learnedPairs, LearnedPair{
+			Key:   words[i],
+			Value: words[i+1],
+		})
+
 		learnedWordsMu.Unlock()
 
-		slog.Info("learned word",
-			slog.String("word", word),
+		slog.Info("learned pair",
+			slog.String("key", words[i]),
+			slog.String("value", words[i+1]),
 		)
 	}
 }
@@ -634,39 +647,20 @@ func generateMemoryPost() string {
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
 
-	if len(learnedWords) == 0 {
+	if len(learnedPairs) == 0 {
 		return ""
 	}
 
-	words := make([]string, 0, len(learnedWords))
-	for word := range learnedWords {
-		words = append(words, word)
-	}
+	pair := learnedPairs[rand.Intn(len(learnedPairs))]
 
-	if len(words) == 1 {
-		post := words[0]
-
-		slog.Info("generated learned post",
-			slog.String("post", post),
-		)
-
-		return post
-	}
-
-	w1 := words[rand.Intn(len(words))]
-	w2 := words[rand.Intn(len(words))]
-
-	for len(words) > 1 && w1 == w2 {
-		w2 = words[rand.Intn(len(words))]
-	}
-
-	post := buildSentence(w1, w2)
+	post := buildSentence(pair.Key, pair.Value)
 
 	slog.Info("generated learned post",
 		slog.String("post", post),
 	)
 
 	return post
+
 }
 func pickWord(words []string) string {
 	if len(words) == 0 {
@@ -839,18 +833,18 @@ func addEmoji(text string) string {
 	return text
 }
 func randomLearnedWord() string {
-
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
 
-	if len(learnedWords) == 0 {
+	if len(learnedPairs) == 0 {
 		return ""
 	}
 
-	words := make([]string, 0, len(learnedWords))
-	for word := range learnedWords {
-		words = append(words, word)
+	pair := learnedPairs[rand.Intn(len(learnedPairs))]
+
+	if rand.Intn(2) == 0 {
+		return pair.Key
 	}
 
-	return words[rand.Intn(len(words))]
+	return pair.Value
 }
