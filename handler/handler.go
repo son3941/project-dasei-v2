@@ -355,6 +355,14 @@ func rememberKnowledge(text string) {
 
 	var words []string
 
+	skipKeys := map[string]bool{
+		"今日": true,
+		"昨日": true,
+		"明日": true,
+		"今年": true,
+		"来年": true,
+		"今":  true,
+	}
 	if strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ") {
 		return
@@ -443,13 +451,45 @@ func rememberKnowledge(text string) {
 	}
 	for i := 0; i < len(words)-1; i++ {
 
+		if skipKeys[words[i]] || skipKeys[words[i+1]] {
+			continue
+		}
+
 		learnedWordsMu.Lock()
 
-		learnedPairs = append(learnedPairs, LearnedPair{
-			Key:   words[i],
-			Value: words[i+1],
-		})
+		exists := false
 
+		for _, pair := range learnedPairs {
+			if pair.Key == words[i] && pair.Value == words[i+1] {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			learnedPairs = append(learnedPairs, LearnedPair{
+				Key:   words[i],
+				Value: words[i+1],
+			})
+		}
+		if i+2 < len(words) {
+
+			exists = false
+
+			for _, pair := range learnedPairs {
+				if pair.Key == words[i] && pair.Value == words[i+2] {
+					exists = true
+					break
+				}
+			}
+
+			if !exists {
+				learnedPairs = append(learnedPairs, LearnedPair{
+					Key:   words[i],
+					Value: words[i+2],
+				})
+			}
+		}
 		learnedWordsMu.Unlock()
 
 		slog.Info("learned pair",
@@ -653,7 +693,21 @@ func generateMemoryPost() string {
 
 	pair := learnedPairs[rand.Intn(len(learnedPairs))]
 
-	post := buildSentence(pair.Key, pair.Value)
+	post := pair.Key + pair.Value
+
+	current := pair.Value
+
+	for i := 0; i < 3; i++ {
+		next, ok := findNextWord(current)
+		if !ok {
+			break
+		}
+
+		post += next
+		current = next
+	}
+
+	post = addEmoji(post)
 
 	slog.Info("generated learned post",
 		slog.String("post", post),
@@ -661,6 +715,24 @@ func generateMemoryPost() string {
 
 	return post
 
+}
+func findNextWord(word string) (string, bool) {
+	learnedWordsMu.RLock()
+	defer learnedWordsMu.RUnlock()
+
+	candidates := []string{}
+
+	for _, pair := range learnedPairs {
+		if pair.Key == word {
+			candidates = append(candidates, pair.Value)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return "", false
+	}
+
+	return candidates[rand.Intn(len(candidates))], true
 }
 func pickWord(words []string) string {
 	if len(words) == 0 {

@@ -40,14 +40,16 @@ func buildSentence(subject, predicate string) string {
 		return subject + " " + predicate
 	}
 	simple := []string{
-		subject + "好き😊",
-		subject + "気になる🤔",
-		subject + "ええね👍",
-		subject + "ゴイスー😆",
-		subject + "かな？",
-		subject + "最高✨",
-		subject + "いい感じ😊",
-		subject + "アリだね👍",
+		subject + "好き",
+		subject + "気になる",
+		subject + "ええね",
+		subject + "ゴイスー",
+		subject + "かな",
+		subject + "最高",
+		subject + "ｲｲﾈ",
+		subject + "好きかも",
+		subject + "よき",
+		"やっぱり" + subject,
 	}
 
 	join := []string{
@@ -59,6 +61,10 @@ func buildSentence(subject, predicate string) string {
 		subject + "最高😆",
 		subject + "好き💕",
 		subject + "いいね✨",
+		subject + "なら" + predicate,
+		predicate + "な" + subject,
+		predicate + "の" + subject,
+		subject + "しか勝たん",
 	}
 	ending := []string{
 		predicate + "だよ",
