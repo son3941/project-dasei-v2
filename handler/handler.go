@@ -241,7 +241,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 				strings.Contains(text, "は") &&
 				strings.Contains(text, "だよ")) {
 
-			rememberKnowledge(text)
+			rememberKnowledge(text, displayName)
 		}
 
 		if err := SavePost(text); err != nil {
@@ -368,10 +368,14 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	}
 	return nil
 }
-func rememberKnowledge(text string) {
+func rememberKnowledge(text, displayName string) {
 
 	var words []string
+	displayName = strings.TrimSpace(displayName)
 
+	if displayName != "" {
+		text = strings.ReplaceAll(text, displayName, "")
+	}
 	skipKeys := map[string]bool{
 		"今日": true,
 		"昨日": true,
@@ -419,6 +423,9 @@ func rememberKnowledge(text string) {
 
 	for _, token := range tokens {
 		surface := strings.TrimSpace(token.Surface)
+		if surface == displayName {
+			continue
+		}
 		skip := false
 
 		for _, w := range fixedWords {
