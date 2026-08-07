@@ -870,6 +870,10 @@ func rememberMember(id, name string) {
 	members[id] = name
 }
 func GenerateReply(text string, isMention bool) string {
+	if reply := fixedReply(text); reply != "" {
+		return reply
+	}
+
 	return createReply(text)
 }
 
