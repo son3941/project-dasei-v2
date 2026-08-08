@@ -369,6 +369,12 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 }
 func shouldReplyToPost(text string, isMention bool) bool {
 
+	// 固定返信ワードが含まれていたら必ず返信
+	// 「だせい、おはよう」「明日も頑張るよ！」なども対象
+	if fixedReply(text) != "" {
+		return true
+	}
+
 	// だせいと呼ばれたら必ず返信
 	if isMention {
 		return true
@@ -391,11 +397,9 @@ func shouldReplyToPost(text string, isMention bool) bool {
 
 	// 会話への反応が必要そうな投稿
 	replyWords := []string{
-		"おはよう",
 		"こんにちは",
 		"こんばんは",
 		"おやすみ",
-		"疲れた",
 		"眠い",
 		"嬉しい",
 		"悲しい",
