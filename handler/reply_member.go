@@ -1,23 +1,26 @@
 package handler
 
-import "math/rand"
+import (
+	"math/rand"
+	"strings"
+)
 
 func randomMember() string {
-	membersMu.RLock()
-	defer membersMu.RUnlock()
-
 	nicknameMu.RLock()
 	defer nicknameMu.RUnlock()
 
-	var names []string
+	if len(nicknames) == 0 {
+		return ""
+	}
 
-	for _, name := range members {
-		nickname, ok := nicknames[name]
-		if !ok || nickname == "" {
+	names := make([]string, 0, len(nicknames))
+
+	for name, nickname := range nicknames {
+		if strings.TrimSpace(nickname) == "" {
 			continue
 		}
 
-		names = append(names, nickname)
+		names = append(names, name)
 	}
 
 	if len(names) == 0 {
