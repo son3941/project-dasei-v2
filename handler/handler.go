@@ -71,6 +71,10 @@ type LearnedPair struct {
 	Key   string
 	Value string
 }
+type LearnedPhrase struct {
+	Text  string
+	Count int
+}
 
 var (
 	memories = make(map[string]Memory)
@@ -86,6 +90,7 @@ var (
 )
 var (
 	learnedPairs   []LearnedPair
+	learnedPhrases []LearnedPhrase
 	learnedWordsMu sync.RWMutex
 )
 
@@ -529,6 +534,36 @@ func rememberKnowledge(text, displayName string) {
 			words = append(words, surface)
 		}
 	}
+	// 投稿全体を短いフレーズとして覚える
+	phraseText := strings.TrimSpace(text)
+
+	if phraseText != "" && len([]rune(phraseText)) >= 3 {
+		learnedWordsMu.Lock()
+
+		exists := false
+		for _, phrase := range learnedPhrases {
+			if phrase.Text == phraseText {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			learnedPhrases = append(learnedPhrases, LearnedPhrase{
+				Text:  phraseText,
+				Count: 1,
+			})
+		} else {
+			for i := range learnedPhrases {
+				if learnedPhrases[i].Text == phraseText {
+					learnedPhrases[i].Count++
+					break
+				}
+			}
+		}
+
+		learnedWordsMu.Unlock()
+	}
 	for i := 0; i < len(words)-1; i++ {
 
 		if skipKeys[words[i]] || skipKeys[words[i+1]] {
@@ -802,7 +837,33 @@ func generateMemoryPost() string {
 
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
+	// 覚えたフレーズがあれば、それをそのまま使う
+	if len(learnedPhrases) > 0 && rand.Intn(100) < 60 {
+		total := 0
 
+		for _, phrase := range learnedPhrases {
+			if phrase.Count > 0 {
+				total += phrase.Count
+			} else {
+				total++
+			}
+		}
+
+		pick := rand.Intn(total)
+
+		for _, phrase := range learnedPhrases {
+			weight := phrase.Count
+			if weight <= 0 {
+				weight = 1
+			}
+
+			if pick < weight {
+				return phrase.Text
+			}
+
+			pick -= weight
+		}
+	}
 	if len(learnedPairs) == 0 {
 		return ""
 	}
