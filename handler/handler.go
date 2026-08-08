@@ -254,14 +254,12 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if isNGAccount(account) {
 			return nil
 		}
+
 		isMention :=
 			strings.Contains(text, "@dasei") ||
 				strings.Contains(text, "だせい")
-		shouldReply := isMention
 
-		if !shouldReply && rand.Intn(100) < 80 {
-			shouldReply = true
-		}
+		shouldReply := shouldReplyToPost(text, isMention)
 
 		if !shouldReply {
 			return nil
@@ -367,6 +365,55 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		)
 	}
 	return nil
+
+}
+func shouldReplyToPost(text string, isMention bool) bool {
+
+	// だせいと呼ばれたら必ず返信
+	if isMention {
+		return true
+	}
+
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return false
+	}
+
+	// 質問には返信しやすくする
+	if strings.Contains(text, "？") ||
+		strings.Contains(text, "?") ||
+		strings.HasSuffix(text, "の？") ||
+		strings.HasSuffix(text, "かな") ||
+		strings.HasSuffix(text, "どう？") {
+		return rand.Intn(100) < 70
+	}
+
+	// 会話への反応が必要そうな投稿
+	replyWords := []string{
+		"おはよう",
+		"こんにちは",
+		"こんばんは",
+		"おやすみ",
+		"疲れた",
+		"眠い",
+		"嬉しい",
+		"悲しい",
+		"楽しい",
+		"面白い",
+		"かわいい",
+		"ありがとう",
+		"助かった",
+	}
+
+	for _, word := range replyWords {
+		if strings.Contains(text, word) {
+			return rand.Intn(100) < 50
+		}
+	}
+
+	// それ以外は低確率で反応
+	return rand.Intn(100) < 15
 }
 func rememberKnowledge(text, displayName string) {
 
@@ -423,6 +470,11 @@ func rememberKnowledge(text, displayName string) {
 
 	for _, token := range tokens {
 		surface := strings.TrimSpace(token.Surface)
+
+		if isProtectedName(surface) {
+			continue
+		}
+
 		if surface == displayName {
 			continue
 		}
@@ -522,21 +574,41 @@ func rememberKnowledge(text, displayName string) {
 		)
 	}
 }
+func isProtectedName(name string) bool {
+	name = strings.TrimSpace(name)
+
+	if name == "" {
+		return false
+	}
+
+	// 現在登録されているコミュニティメンバーの表示名
+	membersMu.RLock()
+	for _, displayName := range members {
+		if name == displayName {
+			membersMu.RUnlock()
+			return true
+		}
+	}
+	membersMu.RUnlock()
+
+	// ニックネーム機能で登録された名前・ニックネーム
+	nicknameMu.RLock()
+	for originalName, nickname := range nicknames {
+		if name == originalName || name == nickname {
+			nicknameMu.RUnlock()
+			return true
+		}
+	}
+	nicknameMu.RUnlock()
+
+	return false
+}
 func isNicknameCommand(text string) bool {
 	return strings.HasPrefix(text, "だせい、") &&
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
 }
 func createReply(text string) string {
-	nicknameMu.RLock()
-	for name, nickname := range nicknames {
-		text = strings.ReplaceAll(text, name+"さん", nickname)
-		text = strings.ReplaceAll(text, name, nickname)
-	}
-	nicknameMu.RUnlock()
-	slog.Info("received text",
-		slog.String("text", text),
-	)
 
 	// 名前を呼ばれたら必ず返信
 	if strings.Contains(text, "だせい") || strings.Contains(text, "惰性") {
@@ -576,6 +648,16 @@ func createReply(text string) string {
 			return addEmoji("わかった！")
 		}
 	}
+	nicknameMu.RLock()
+	for name, nickname := range nicknames {
+		text = strings.ReplaceAll(text, name+"さん", nickname)
+		text = strings.ReplaceAll(text, name, nickname)
+	}
+	nicknameMu.RUnlock()
+
+	slog.Info("received text",
+		slog.String("text", text),
+	)
 	if strings.HasPrefix(text, "だせい、") && strings.Contains(text, "は") && strings.Contains(text, "だよ") {
 		slog.Info("teach pattern detected")
 		body := strings.TrimPrefix(text, "だせい、")
