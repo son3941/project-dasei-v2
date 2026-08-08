@@ -534,36 +534,7 @@ func rememberKnowledge(text, displayName string) {
 			words = append(words, surface)
 		}
 	}
-	// 投稿全体を短いフレーズとして覚える
-	phraseText := strings.TrimSpace(text)
 
-	if phraseText != "" && len([]rune(phraseText)) >= 3 {
-		learnedWordsMu.Lock()
-
-		exists := false
-		for _, phrase := range learnedPhrases {
-			if phrase.Text == phraseText {
-				exists = true
-				break
-			}
-		}
-
-		if !exists {
-			learnedPhrases = append(learnedPhrases, LearnedPhrase{
-				Text:  phraseText,
-				Count: 1,
-			})
-		} else {
-			for i := range learnedPhrases {
-				if learnedPhrases[i].Text == phraseText {
-					learnedPhrases[i].Count++
-					break
-				}
-			}
-		}
-
-		learnedWordsMu.Unlock()
-	}
 	for i := 0; i < len(words)-1; i++ {
 
 		if skipKeys[words[i]] || skipKeys[words[i+1]] {
@@ -683,7 +654,27 @@ func createReply(text string) string {
 			teachMu.Lock()
 			delete(teaches, name)
 			teachMu.Unlock()
+			learnedWordsMu.Lock()
 
+			var filteredPairs []LearnedPair
+			for _, pair := range learnedPairs {
+				if pair.Key == name || pair.Value == name {
+					continue
+				}
+				filteredPairs = append(filteredPairs, pair)
+			}
+			learnedPairs = filteredPairs
+
+			var filteredPhrases []LearnedPhrase
+			for _, phrase := range learnedPhrases {
+				if strings.Contains(phrase.Text, name) {
+					continue
+				}
+				filteredPhrases = append(filteredPhrases, phrase)
+			}
+			learnedPhrases = filteredPhrases
+
+			learnedWordsMu.Unlock()
 			return addEmoji("わかった！")
 		}
 	}

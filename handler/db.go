@@ -150,6 +150,11 @@ DELETE FROM posts;
 	memories = make(map[string]Memory)
 	memoryMu.Unlock()
 
+	learnedWordsMu.Lock()
+	learnedPairs = nil
+	learnedPhrases = nil
+	learnedWordsMu.Unlock()
+
 	return nil
 }
 
