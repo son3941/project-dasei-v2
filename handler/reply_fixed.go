@@ -7,8 +7,8 @@ func fixedReply(text string) string {
 	t := strings.TrimSpace(text)
 
 	// おはよう
-	if strings.HasPrefix(t, "おはよう") ||
-		strings.HasPrefix(t, "おはよ") {
+	if strings.Contains(t, "おはよう") ||
+		strings.Contains(t, "おはよ") {
 		return addEmoji("おはよう！")
 	}
 
