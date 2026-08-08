@@ -28,7 +28,9 @@ func initDB() error {
 			err = sql.ErrConnDone
 			return
 		}
+
 		slog.Info("opening postgres")
+
 		db, err = sql.Open("postgres", dsn)
 		if err != nil {
 			slog.Error("sql.Open failed",
@@ -43,10 +45,13 @@ func initDB() error {
 			slog.Error("Ping failed",
 				slog.String("error", err.Error()),
 			)
+			db.Close()
+			db = nil
 			return
 		}
+
 		slog.Info("Ping OK")
-		slog.Info("creating table")
+		slog.Info("creating tables")
 
 		_, err = db.Exec(`
 CREATE TABLE IF NOT EXISTS memories (
@@ -55,34 +60,40 @@ CREATE TABLE IF NOT EXISTS memories (
     last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 `)
-
 		if err != nil {
-			slog.Error("CREATE TABLE failed",
+			slog.Error("CREATE memories TABLE failed",
 				slog.String("error", err.Error()),
 			)
 			return
 		}
 
-		slog.Info("table created")
-	})
-	_, err = db.Exec(`
+		_, err = db.Exec(`
 CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
     text TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 `)
+		if err != nil {
+			slog.Error("CREATE posts TABLE failed",
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+
+		slog.Info("tables created")
+	})
+
 	if err != nil {
-		slog.Error("CREATE POSTS TABLE failed",
-			slog.String("error", err.Error()),
-		)
 		return err
 	}
 
-	slog.Info("posts table created")
-	return err
-}
+	if db == nil {
+		return sql.ErrConnDone
+	}
 
+	return nil
+}
 func SaveMemory(key, value string) error {
 	if err := initDB(); err != nil {
 		return err

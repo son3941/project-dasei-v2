@@ -172,6 +172,7 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 
 // Handle processes events from mixi2.
 func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
+	slog.Info("EVENT TYPE", slog.Int("event_type", int(ev.EventType)))
 	switch ev.EventType {
 	case constv1.EventType_EVENT_TYPE_POST_CREATED:
 		post := ev.GetPostCreatedEvent()
@@ -285,9 +286,8 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return err
 		}
 		h.logger.Info(
-			"community",
-			slog.String("communityID", post.GetPost().GetCommunityId()),
-			slog.String("postID", post.GetPost().GetPostId()),
+			"post object",
+			slog.Any("post", post.GetPost()),
 		)
 		communityID := post.GetPost().GetCommunityId()
 		h.communityID = communityID
@@ -830,29 +830,41 @@ func generateMemoryPost() string {
 	defer learnedWordsMu.RUnlock()
 	// 覚えたフレーズがあれば、それをそのまま使う
 	if len(learnedPhrases) > 0 && rand.Intn(100) < 60 {
-		total := 0
+		var candidates []LearnedPhrase
 
 		for _, phrase := range learnedPhrases {
-			if phrase.Count > 0 {
-				total += phrase.Count
-			} else {
-				total++
+			if isProtectedName(phrase.Text) {
+				continue
 			}
+
+			candidates = append(candidates, phrase)
 		}
 
-		pick := rand.Intn(total)
+		if len(candidates) > 0 {
+			total := 0
 
-		for _, phrase := range learnedPhrases {
-			weight := phrase.Count
-			if weight <= 0 {
-				weight = 1
+			for _, phrase := range candidates {
+				if phrase.Count > 0 {
+					total += phrase.Count
+				} else {
+					total++
+				}
 			}
 
-			if pick < weight {
-				return phrase.Text
-			}
+			pick := rand.Intn(total)
 
-			pick -= weight
+			for _, phrase := range candidates {
+				weight := phrase.Count
+				if weight <= 0 {
+					weight = 1
+				}
+
+				if pick < weight {
+					return phrase.Text
+				}
+
+				pick -= weight
+			}
 		}
 	}
 	if len(learnedPairs) == 0 {
@@ -905,9 +917,8 @@ func findNextWord(word string) (string, bool) {
 	candidates := []string{}
 
 	for _, pair := range learnedPairs {
-		if pair.Key == word &&
-			!isProtectedName(pair.Key) &&
-			!isProtectedName(pair.Value) {
+
+		if pair.Key == word && !isProtectedName(pair.Key) && !isProtectedName(pair.Value) {
 			candidates = append(candidates, pair.Value)
 		}
 	}
