@@ -7,6 +7,10 @@ import (
 func memberPhrase(name string) string {
 	name = nicknameOf(name)
 
+	if name == "" {
+		return ""
+	}
+
 	switch rand.Intn(8) {
 
 	case 0:

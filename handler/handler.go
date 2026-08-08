@@ -668,12 +668,17 @@ func createReply(text string) string {
 			value := strings.TrimSuffix(parts[1], "だよ")
 			value = strings.TrimSpace(value)
 
+			if isProtectedName(key) || isProtectedName(value) {
+				return addEmoji("それは名前として覚えないよ")
+			}
+
 			memoryMu.Lock()
 			memories[key] = Memory{
 				Value:     value,
 				LearnedAt: time.Now(),
 			}
 			memoryMu.Unlock()
+
 			if err := SaveMemory(key, value); err != nil {
 				slog.Error("SaveMemory failed",
 					slog.String("error", err.Error()),
@@ -687,7 +692,8 @@ func createReply(text string) string {
 
 			return addEmoji("わかった！")
 		}
-	}
+	} // ← これを追加
+
 	reply := replyFromMemory(text)
 	if reply != "" {
 		return reply
@@ -783,7 +789,7 @@ func nicknameOf(name string) string {
 		return nickname
 	}
 
-	return name
+	return ""
 }
 func memberID(name string) string {
 	return name
@@ -797,7 +803,21 @@ func generateMemoryPost() string {
 		return ""
 	}
 
-	pair := learnedPairs[rand.Intn(len(learnedPairs))]
+	var candidates []LearnedPair
+
+	for _, pair := range learnedPairs {
+		if isProtectedName(pair.Key) || isProtectedName(pair.Value) {
+			continue
+		}
+
+		candidates = append(candidates, pair)
+	}
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	pair := candidates[rand.Intn(len(candidates))]
 
 	post := pair.Key + pair.Value
 
@@ -829,7 +849,9 @@ func findNextWord(word string) (string, bool) {
 	candidates := []string{}
 
 	for _, pair := range learnedPairs {
-		if pair.Key == word {
+		if pair.Key == word &&
+			!isProtectedName(pair.Key) &&
+			!isProtectedName(pair.Value) {
 			candidates = append(candidates, pair.Value)
 		}
 	}

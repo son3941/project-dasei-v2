@@ -6,13 +6,22 @@ func randomMember() string {
 	membersMu.RLock()
 	defer membersMu.RUnlock()
 
-	if len(members) == 0 {
-		return ""
+	nicknameMu.RLock()
+	defer nicknameMu.RUnlock()
+
+	var names []string
+
+	for _, name := range members {
+		nickname, ok := nicknames[name]
+		if !ok || nickname == "" {
+			continue
+		}
+
+		names = append(names, nickname)
 	}
 
-	names := make([]string, 0, len(members))
-	for _, name := range members {
-		names = append(names, name)
+	if len(names) == 0 {
+		return ""
 	}
 
 	return names[rand.Intn(len(names))]
