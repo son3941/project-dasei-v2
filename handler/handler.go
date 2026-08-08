@@ -994,9 +994,11 @@ func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessage
 	}
 
 	isMention := strings.Contains(userText, "@dasei")
-	if !isMention && rand.Intn(100) >= 50 {
+
+	if !isMention && fixedReply(userText) == "" && rand.Intn(100) >= 50 {
 		return nil
 	}
+
 	reply := GenerateReply(userText, isMention)
 
 	authCtx, err := h.authenticator.AuthorizedContext(ctx)
