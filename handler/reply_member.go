@@ -15,12 +15,12 @@ func randomMember() string {
 
 	names := make([]string, 0, len(nicknames))
 
-	for name, nickname := range nicknames {
+	for _, nickname := range nicknames {
 		if strings.TrimSpace(nickname) == "" {
 			continue
 		}
 
-		names = append(names, name)
+		names = append(names, nickname)
 	}
 
 	if len(names) == 0 {
