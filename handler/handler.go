@@ -678,7 +678,6 @@ func createReply(text string) string {
 			return addEmoji("わかった！")
 		}
 	}
-	text = applyNicknames(text)
 
 	slog.Info("received text",
 		slog.String("text", text),
@@ -718,7 +717,7 @@ func createReply(text string) string {
 			return addEmoji("わかった！")
 		}
 	} // ← これを追加
-
+	text = applyNicknames(text)
 	reply := replyFromMemory(text)
 	if reply != "" {
 		return reply
