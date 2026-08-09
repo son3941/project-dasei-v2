@@ -594,7 +594,7 @@ func isProtectedName(name string) bool {
 	// 現在登録されているコミュニティメンバーの表示名
 	membersMu.RLock()
 	for _, displayName := range members {
-		if name == displayName {
+		if strings.Contains(name, displayName) {
 			membersMu.RUnlock()
 			return true
 		}
