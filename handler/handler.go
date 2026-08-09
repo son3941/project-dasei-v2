@@ -961,6 +961,9 @@ func applyNicknames(text string) string {
 }
 func createMutter(text string) string {
 	// 10%は何も言わない
+	if rand.Intn(100) < 10 {
+		return decorateMutter(createChuunibyou())
+	}
 	if rand.Intn(100) < 80 && len(memories) > 0 {
 		memoryMu.RLock()
 
