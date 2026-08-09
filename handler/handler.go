@@ -646,7 +646,8 @@ func createReply(text string) string {
 
 			nickname := strings.TrimSuffix(parts[1], "だよ")
 			nickname = strings.TrimSpace(nickname)
-
+			nickname = strings.TrimSuffix(nickname, "さん")
+			nickname = strings.TrimSpace(nickname)
 			nicknameMu.Lock()
 			nicknames[name] = nickname
 			nicknameMu.Unlock()
