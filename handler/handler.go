@@ -678,12 +678,7 @@ func createReply(text string) string {
 			return addEmoji("わかった！")
 		}
 	}
-	nicknameMu.RLock()
-	for name, nickname := range nicknames {
-		text = strings.ReplaceAll(text, name+"さん", nickname)
-		text = strings.ReplaceAll(text, name, nickname)
-	}
-	nicknameMu.RUnlock()
+	text = applyNicknames(text)
 
 	slog.Info("received text",
 		slog.String("text", text),
@@ -953,6 +948,17 @@ func pickWord(words []string) string {
 
 	return candidates[rand.Intn(len(candidates))]
 }
+func applyNicknames(text string) string {
+	nicknameMu.RLock()
+	defer nicknameMu.RUnlock()
+
+	for name, nickname := range nicknames {
+		text = strings.ReplaceAll(text, name+"さん", nickname)
+		text = strings.ReplaceAll(text, name, nickname)
+	}
+
+	return text
+}
 func createMutter(text string) string {
 	// 10%は何も言わない
 	if rand.Intn(100) < 80 && len(memories) > 0 {
@@ -982,7 +988,7 @@ func createMutter(text string) string {
 					second,
 			)
 
-			return decorateMutter(reply)
+			return decorateMutter(applyNicknames(reply))
 		}
 	}
 
@@ -994,7 +1000,7 @@ func createMutter(text string) string {
 	}
 
 	return decorateMutter(
-		mutters[rand.Intn(len(mutters))],
+		applyNicknames(mutters[rand.Intn(len(mutters))]),
 	)
 }
 func isNGMember(name string) bool {
