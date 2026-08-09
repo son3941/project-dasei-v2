@@ -964,7 +964,15 @@ func createMutter(text string) string {
 		memoryMu.RLock()
 
 		values := make([]string, 0, len(memories))
-		for _, m := range memories {
+		for name, m := range memories {
+			nicknameMu.RLock()
+			_, isOriginalName := nicknames[name]
+			nicknameMu.RUnlock()
+
+			if isOriginalName {
+				continue
+			}
+
 			values = append(values, m.Value)
 		}
 
