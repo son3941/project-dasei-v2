@@ -976,9 +976,8 @@ func createMutter(text string) string {
 			first := values[rand.Intn(len(values))]
 
 			if len(values) == 1 {
-				return addEmoji(first)
+				return addEmoji(applyNicknames(first))
 			}
-
 			second := values[rand.Intn(len(values))]
 
 			reply := addEmoji(
