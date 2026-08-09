@@ -1010,6 +1010,51 @@ func createMutter(text string) string {
 		applyNicknames(mutters[rand.Intn(len(mutters))]),
 	)
 }
+func createChuunibyou() string {
+	templates := []string{
+		"我が右腕に宿りし【能力】……今こそ、その封印を解き放つ時だ……！",
+		"我が名は【名前】……この世界を支配するために堕天した者だ。",
+		"俺様の封印されし右目……今、解き放て！【記憶】の真実を見せてやる！",
+		"我が右腕に宿りし紅蓮焔、左腕に宿りし蒼魂焔よ！【記憶】を灰燼へ帰せ！",
+		"久遠なる虚無の狭間にて、【記憶】の慟哭を聴け……これが運命というものだ。",
+		"バニッシュメント・ディス・ワールド……！【記憶】よ、我が力の前に跪け！",
+		"2000年前……俺は【記憶】をこの身に封印した。だが今、その力が疼いている……！",
+		"我は魔王【名前】！この世を支配するために来た！我が覇道を阻む者は容赦しない！",
+		"闇夜に葬られし漆黒の【記憶】……今宵、その名を世界に刻もう……。",
+		"フッ……この程度か。俺は……さ……最強だ‼️【記憶】の力も、まだほんの一端に過ぎない……！",
+	}
+
+	memoryMu.RLock()
+
+	values := make([]string, 0, len(memories))
+	for _, m := range memories {
+		values = append(values, m.Value)
+	}
+
+	memoryMu.RUnlock()
+
+	result := templates[rand.Intn(len(templates))]
+
+	if len(values) > 0 {
+		memory := values[rand.Intn(len(values))]
+
+		result = strings.ReplaceAll(result, "【記憶】", memory)
+		result = strings.ReplaceAll(result, "【能力】", memory)
+		result = strings.ReplaceAll(result, "【名前】", memory)
+	} else {
+		result = strings.ReplaceAll(result, "【記憶】", "")
+		result = strings.ReplaceAll(result, "【能力】", "")
+		result = strings.ReplaceAll(result, "【名前】", "")
+	}
+
+	result = applyNicknames(result)
+
+	if len([]rune(result)) > 149 {
+		result = string([]rune(result)[:149])
+	}
+
+	return result
+}
 func isNGMember(name string) bool {
 	for _, ng := range ngMembers {
 		if name == ng {
