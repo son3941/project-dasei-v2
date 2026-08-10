@@ -373,56 +373,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 
 }
 func shouldReplyToPost(text string, isMention bool) bool {
-
-	// 固定返信ワードが含まれていたら必ず返信
-	// 「だせい、おはよう」「明日も頑張るよ！」なども対象
-	if fixedReply(text) != "" {
-		return true
-	}
-
-	// だせいと呼ばれたら必ず返信
-	if isMention {
-		return true
-	}
-
-	text = strings.TrimSpace(text)
-
-	if text == "" {
-		return false
-	}
-
-	// 質問には返信しやすくする
-	if strings.Contains(text, "？") ||
-		strings.Contains(text, "?") ||
-		strings.HasSuffix(text, "の？") ||
-		strings.HasSuffix(text, "かな") ||
-		strings.HasSuffix(text, "どう？") {
-		return rand.Intn(100) < 70
-	}
-
-	// 会話への反応が必要そうな投稿
-	replyWords := []string{
-		"こんにちは",
-		"こんばんは",
-		"おやすみ",
-		"眠い",
-		"嬉しい",
-		"悲しい",
-		"楽しい",
-		"面白い",
-		"かわいい",
-		"ありがとう",
-		"助かった",
-	}
-
-	for _, word := range replyWords {
-		if strings.Contains(text, word) {
-			return rand.Intn(100) < 50
-		}
-	}
-
-	// それ以外は低確率で反応
-	return rand.Intn(100) < 15
+	return true
 }
 func rememberKnowledge(text, displayName string) {
 
