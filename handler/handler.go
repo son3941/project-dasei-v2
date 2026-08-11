@@ -862,11 +862,15 @@ func generateMemoryPost() string {
 
 	current := pair.Value
 
-	for i := 0; i < 2; i++ {
-		next, ok := findNextWord(current)
+	for i := 0; i < 3; i++ {
+		// まず外部辞書を優先する
+		next, ok := findExternalNextWord(current)
+
+		// 外部辞書で見つからなければ、内部記憶を使う
 		if !ok {
-			next, ok = findExternalNextWord(current)
+			next, ok = findNextWord(current)
 		}
+
 		if !ok {
 			break
 		}
