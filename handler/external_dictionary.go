@@ -58,6 +58,7 @@ func findExternalNextWord(word string) (string, bool) {
 
 	// 現在の品詞から、次に自然につながりやすい品詞を決める
 	preferredPOS := map[string][]string{
+		"noun":      {"phrase", "adjective", "verb"},
 		"phrase":    {"adjective", "verb", "phrase"},
 		"adjective": {"phrase", "adverb", "verb"},
 		"adverb":    {"verb", "adjective", "phrase"},
@@ -65,6 +66,12 @@ func findExternalNextWord(word string) (string, bool) {
 	}
 
 	preferred := preferredPOS[currentPOS]
+
+	if len(preferred) == 0 {
+		// 外部辞書に存在しない未知の言葉は、
+		// 名詞・フレーズとして自然につながる候補を優先する
+		preferred = []string{"phrase", "adjective", "verb"}
+	}
 
 	// まず、相性のいい品詞だけで候補を作る
 	var candidates []string
