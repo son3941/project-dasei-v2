@@ -186,11 +186,19 @@ func SaveLearnedPair(key, value string) error {
 		return err
 	}
 
-	_, err := db.Exec(`
-        INSERT OR IGNORE INTO learned_pairs (pair_key, pair_value)
-        VALUES (?, ?)
-    `, key, value)
+	_, err := db.Exec(
+		`DELETE FROM learned_pairs WHERE pair_key = $1`,
+		key,
+	)
+	if err != nil {
+		return err
+	}
 
+	_, err = db.Exec(
+		`INSERT INTO learned_pairs (pair_key, pair_value)
+         VALUES ($1, $2)`,
+		key, value,
+	)
 	return err
 }
 
