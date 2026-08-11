@@ -862,7 +862,7 @@ func generateMemoryPost() string {
 
 	current := pair.Value
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		next, ok := findNextWord(current)
 		if !ok {
 			next, ok = findExternalNextWord(current)
