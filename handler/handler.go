@@ -115,6 +115,16 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		}
 		memoryMu.Unlock()
 	}
+	pairs, pairErr := LoadLearnedPairs()
+	if pairErr != nil {
+		slog.Error("LoadLearnedPairs failed",
+			slog.String("error", pairErr.Error()),
+		)
+	} else {
+		learnedWordsMu.Lock()
+		learnedPairs = pairs
+		learnedWordsMu.Unlock()
+	}
 	return &Handler{
 		logger:        slog.Default(),
 		apiClient:     apiClient,
@@ -267,9 +277,16 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 
 		shouldReply := shouldReplyToPost(text, isMention)
 
+		slog.Info("shouldReply result",
+			slog.Bool("shouldReply", shouldReply),
+			slog.Bool("isMention", isMention),
+		)
+
 		if !shouldReply {
+			slog.Info("reply skipped by shouldReplyToPost")
 			return nil
 		}
+
 		slog.Info("before GenerateReply")
 		reply := GenerateReply(
 			text,
@@ -508,6 +525,10 @@ func rememberKnowledge(text, displayName string) {
 				Key:   words[i],
 				Value: words[i+1],
 			})
+
+			if err := SaveLearnedPair(words[i], words[i+1]); err != nil {
+				slog.Error("SaveLearnedPair failed", slog.String("error", err.Error()))
+			}
 		}
 		if i+2 < len(words) {
 
@@ -525,6 +546,10 @@ func rememberKnowledge(text, displayName string) {
 					Key:   words[i],
 					Value: words[i+2],
 				})
+
+				if err := SaveLearnedPair(words[i], words[i+2]); err != nil {
+					slog.Error("SaveLearnedPair failed", slog.String("error", err.Error()))
+				}
 			}
 		}
 		learnedWordsMu.Unlock()

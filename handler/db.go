@@ -91,7 +91,20 @@ CREATE TABLE IF NOT EXISTS posts (
 	if db == nil {
 		return sql.ErrConnDone
 	}
-
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS learned_pairs (
+    id SERIAL PRIMARY KEY,
+    pair_key TEXT NOT NULL,
+    pair_value TEXT NOT NULL,
+    UNIQUE(pair_key, pair_value)
+)
+`)
+	if err != nil {
+		slog.Error("CREATE learned_pairs TABLE failed",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
 	return nil
 }
 func SaveMemory(key, value string) error {
@@ -168,7 +181,77 @@ DELETE FROM posts;
 
 	return nil
 }
+func SaveLearnedPair(key, value string) error {
+	if err := initDB(); err != nil {
+		return err
+	}
 
+	_, err := db.Exec(`
+        INSERT OR IGNORE INTO learned_pairs (pair_key, pair_value)
+        VALUES (?, ?)
+    `, key, value)
+
+	return err
+}
+
+func LoadLearnedPairs() ([]LearnedPair, error) {
+	if err := initDB(); err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Query(`
+        SELECT pair_key, pair_value
+        FROM learned_pairs
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	pairs := make([]LearnedPair, 0)
+
+	for rows.Next() {
+		var key, value string
+
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+
+		pairs = append(pairs, LearnedPair{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pairs, nil
+}
+
+func DeleteLearnedPairsByName(name string) error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`
+        DELETE FROM learned_pairs
+        WHERE pair_key = ? OR pair_value = ?
+    `, name, name)
+
+	return err
+}
+
+func ClearLearnedPairs() error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`DELETE FROM learned_pairs`)
+
+	return err
+}
 func SavePost(text string) error {
 	if err := initDB(); err != nil {
 		return err
