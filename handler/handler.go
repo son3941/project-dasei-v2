@@ -882,23 +882,29 @@ func generateMemoryPost() string {
 
 }
 func findNextWord(word string) (string, bool) {
+	// まず、だせい自身が覚えている言葉から探す
 	learnedWordsMu.RLock()
-	defer learnedWordsMu.RUnlock()
 
 	candidates := []string{}
 
 	for _, pair := range learnedPairs {
+		if pair.Key == word &&
+			!isProtectedName(pair.Key) &&
+			!isProtectedName(pair.Value) {
 
-		if pair.Key == word && !isProtectedName(pair.Key) && !isProtectedName(pair.Value) {
 			candidates = append(candidates, pair.Value)
 		}
 	}
 
-	if len(candidates) == 0 {
-		return "", false
+	learnedWordsMu.RUnlock()
+
+	// 内部記憶にあれば、今まで通りそれを使う
+	if len(candidates) > 0 {
+		return candidates[rand.Intn(len(candidates))], true
 	}
 
-	return candidates[rand.Intn(len(candidates))], true
+	// 内部記憶に無ければ外部辞書へ
+	return findExternalNextWord(word)
 }
 func pickWord(words []string) string {
 	if len(words) == 0 {

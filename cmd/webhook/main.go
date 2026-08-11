@@ -26,7 +26,9 @@ import (
 
 func main() {
 	cfg := config.GetConfig()
-
+	if err := handler.LoadExternalDictionary(); err != nil {
+		log.Fatalf("failed to load external dictionary: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Decode public key
