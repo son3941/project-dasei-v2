@@ -47,12 +47,31 @@ func findExternalNextWord(word string) (string, bool) {
 		return "", false
 	}
 
-	// 現段階では、現在の単語そのものは除外して
-	// 外部辞書から候補を作る
+	// 現在の言葉の品詞を調べる
+	currentPOS := ""
+	for _, item := range externalDictionary {
+		if strings.TrimSpace(item.Word) == word {
+			currentPOS = strings.TrimSpace(item.POS)
+			break
+		}
+	}
+
+	// 現在の品詞から、次に自然につながりやすい品詞を決める
+	preferredPOS := map[string][]string{
+		"phrase":    {"adjective", "verb", "phrase"},
+		"adjective": {"phrase", "adverb", "verb"},
+		"adverb":    {"verb", "adjective", "phrase"},
+		"verb":      {"phrase", "adverb", "adjective"},
+	}
+
+	preferred := preferredPOS[currentPOS]
+
+	// まず、相性のいい品詞だけで候補を作る
 	var candidates []string
 
 	for _, item := range externalDictionary {
 		w := strings.TrimSpace(item.Word)
+		pos := strings.TrimSpace(item.POS)
 
 		if w == "" || w == word {
 			continue
@@ -62,7 +81,29 @@ func findExternalNextWord(word string) (string, bool) {
 			continue
 		}
 
-		candidates = append(candidates, w)
+		for _, p := range preferred {
+			if pos == p {
+				candidates = append(candidates, w)
+				break
+			}
+		}
+	}
+
+	// 相性のいい候補がなければ、従来どおり全体から選ぶ
+	if len(candidates) == 0 {
+		for _, item := range externalDictionary {
+			w := strings.TrimSpace(item.Word)
+
+			if w == "" || w == word {
+				continue
+			}
+
+			if isProtectedName(w) {
+				continue
+			}
+
+			candidates = append(candidates, w)
+		}
 	}
 
 	if len(candidates) == 0 {
