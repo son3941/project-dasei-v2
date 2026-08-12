@@ -66,7 +66,34 @@ func findExternalNextWord(word string) (string, bool) {
 	}
 
 	preferred := preferredPOS[currentPOS]
+	// 特定の言葉同士で自然につながる組み合わせを優先する
+	preferredWords := map[string][]string{
+		"今日は":   {"暑いね", "ゆっくり", "休もう"},
+		"暑いね":   {"ゆっくり", "休もう"},
+		"ゆっくり":  {"休もう"},
+		"おもしろい": {"なるほど", "そうなんだ"},
+		"なるほど":  {"そうなんだ"},
+	}
 
+	// 言葉そのものの相性を最優先する
+	if words := preferredWords[word]; len(words) > 0 {
+		var wordCandidates []string
+
+		for _, preferredWord := range words {
+			for _, item := range externalDictionary {
+				w := strings.TrimSpace(item.Word)
+
+				if w == preferredWord && !isProtectedName(w) {
+					wordCandidates = append(wordCandidates, w)
+					break
+				}
+			}
+		}
+
+		if len(wordCandidates) > 0 {
+			return wordCandidates[rand.Intn(len(wordCandidates))], true
+		}
+	}
 	if len(preferred) == 0 {
 		// 外部辞書に存在しない未知の言葉は、
 		// 名詞・フレーズとして自然につながる候補を優先する
