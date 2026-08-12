@@ -860,23 +860,6 @@ func generateMemoryPost() string {
 
 	post := pair.Key + pair.Value
 
-	current := pair.Value
-
-	for i := 0; i < 2; i++ {
-		next, ok := findExternalNextWord(current)
-
-		if !ok {
-			next, ok = findNextWord(current)
-		}
-
-		if !ok {
-			break
-		}
-
-		post += next
-		current = next
-	}
-
 	post = addEmoji(post)
 
 	slog.Info("generated learned post",
