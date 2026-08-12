@@ -796,70 +796,85 @@ func memberID(name string) string {
 	return name
 }
 func generateMemoryPost() string {
-
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
+
 	// 覚えたフレーズがあれば、それをそのまま使う
 	if len(learnedPhrases) > 0 && rand.Intn(100) < 60 {
-		var candidates []LearnedPhrase
+		var phraseCandidates []LearnedPhrase
 
 		for _, phrase := range learnedPhrases {
 			if isProtectedName(phrase.Text) {
 				continue
 			}
 
-			candidates = append(candidates, phrase)
+			if isMeaninglessLearnedText(phrase.Text) {
+				continue
+			}
+
+			phraseCandidates = append(phraseCandidates, phrase)
 		}
 
-		if len(candidates) > 0 {
+		if len(phraseCandidates) > 0 {
 			total := 0
 
-			for _, phrase := range candidates {
-				if phrase.Count > 0 {
-					total += phrase.Count
-				} else {
-					total++
+			for _, phrase := range phraseCandidates {
+				weight := phrase.Count
+				if weight <= 0 {
+					weight = 1
 				}
+				total += weight
 			}
 
 			pick := rand.Intn(total)
 
-			for _, phrase := range candidates {
+			for _, phrase := range phraseCandidates {
 				weight := phrase.Count
 				if weight <= 0 {
 					weight = 1
 				}
 
 				if pick < weight {
-					return phrase.Text
+					post := addEmoji(phrase.Text)
+
+					slog.Info("generated learned post",
+						slog.String("post", post),
+					)
+
+					return post
 				}
 
 				pick -= weight
 			}
 		}
 	}
+
+	// 覚えたペアから選ぶ
 	if len(learnedPairs) == 0 {
 		return ""
 	}
 
-	var candidates []LearnedPair
-
+	var pairCandidates []LearnedPair
 	for _, pair := range learnedPairs {
 		if isProtectedName(pair.Key) || isProtectedName(pair.Value) {
 			continue
 		}
 
-		candidates = append(candidates, pair)
+		if isMeaninglessLearnedText(pair.Key) ||
+			isMeaninglessLearnedText(pair.Value) {
+			continue
+		}
+
+		pairCandidates = append(pairCandidates, pair)
 	}
 
-	if len(candidates) == 0 {
+	if len(pairCandidates) == 0 {
 		return ""
 	}
 
-	pair := candidates[rand.Intn(len(candidates))]
+	pair := pairCandidates[rand.Intn(len(pairCandidates))]
 
 	post := pair.Key + pair.Value
-
 	post = addEmoji(post)
 
 	slog.Info("generated learned post",
@@ -867,7 +882,25 @@ func generateMemoryPost() string {
 	)
 
 	return post
+}
+func isMeaninglessLearnedText(text string) bool {
+	text = strings.TrimSpace(text)
 
+	if text == "" {
+		return true
+	}
+
+	// 記号だけの文字列を除外
+	meaningful := false
+
+	for _, r := range text {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			meaningful = true
+			break
+		}
+	}
+
+	return !meaningful
 }
 func findNextWord(word string) (string, bool) {
 	// まず、だせい自身が覚えている言葉から探す
@@ -994,7 +1027,7 @@ func createChuunibyou() string {
 		"2000年前……俺は【記憶】をこの身に封印した。だが今、その力が疼いている……！",
 		"我は魔王【名前】！この世を支配するために来た！我が覇道を阻む者は容赦しない！",
 		"闇夜に葬られし漆黒の【記憶】……今宵、その名を世界に刻もう……。",
-		"フッ……この程度か。俺は……さ……最強だ‼️【記憶】の力も、まだほんの一端に過ぎない……！",
+		"フッ......この程度か。俺は......さ......最強だ‼ 【記憶】の力も、まだほんの一端に過ぎない......！",
 	}
 
 	memoryMu.RLock()
