@@ -797,61 +797,16 @@ func memberID(name string) string {
 }
 func generateMemoryPost() string {
 	learnedWordsMu.RLock()
-	defer learnedWordsMu.RUnlock()
 
-	// 覚えたフレーズがあれば、それをそのまま使う
-	if len(learnedPhrases) > 0 && rand.Intn(100) < 60 {
-		var phraseCandidates []LearnedPhrase
-
-		for _, phrase := range learnedPhrases {
-			if isProtectedName(phrase.Text) {
-				continue
-			}
-
-			if isMeaninglessLearnedText(phrase.Text) {
-				continue
-			}
-
-			phraseCandidates = append(phraseCandidates, phrase)
+	var phraseCandidates []LearnedPhrase
+	for _, phrase := range learnedPhrases {
+		if isProtectedName(phrase.Text) {
+			continue
 		}
-
-		if len(phraseCandidates) > 0 {
-			total := 0
-
-			for _, phrase := range phraseCandidates {
-				weight := phrase.Count
-				if weight <= 0 {
-					weight = 1
-				}
-				total += weight
-			}
-
-			pick := rand.Intn(total)
-
-			for _, phrase := range phraseCandidates {
-				weight := phrase.Count
-				if weight <= 0 {
-					weight = 1
-				}
-
-				if pick < weight {
-					post := addEmoji(phrase.Text)
-
-					slog.Info("generated learned post",
-						slog.String("post", post),
-					)
-
-					return post
-				}
-
-				pick -= weight
-			}
+		if isMeaninglessLearnedText(phrase.Text) {
+			continue
 		}
-	}
-
-	// 覚えたペアから選ぶ
-	if len(learnedPairs) == 0 {
-		return ""
+		phraseCandidates = append(phraseCandidates, phrase)
 	}
 
 	var pairCandidates []LearnedPair
@@ -859,22 +814,85 @@ func generateMemoryPost() string {
 		if isProtectedName(pair.Key) || isProtectedName(pair.Value) {
 			continue
 		}
-
 		if isMeaninglessLearnedText(pair.Key) ||
 			isMeaninglessLearnedText(pair.Value) {
 			continue
 		}
-
 		pairCandidates = append(pairCandidates, pair)
 	}
 
+	learnedWordsMu.RUnlock()
+
+	// 覚えたフレーズを、そのまま使うこともある
+	if len(phraseCandidates) > 0 && rand.Intn(100) < 30 {
+		total := 0
+
+		for _, phrase := range phraseCandidates {
+			weight := phrase.Count
+			if weight <= 0 {
+				weight = 1
+			}
+			total += weight
+		}
+
+		pick := rand.Intn(total)
+
+		for _, phrase := range phraseCandidates {
+			weight := phrase.Count
+			if weight <= 0 {
+				weight = 1
+			}
+
+			if pick < weight {
+				post := addEmoji(applyNicknames(phrase.Text))
+
+				slog.Info("generated learned phrase",
+					slog.String("post", post),
+				)
+
+				return post
+			}
+
+			pick -= weight
+		}
+	}
+	// 覚えたペアがなければ、覚えたフレーズを使う
 	if len(pairCandidates) == 0 {
+		if len(phraseCandidates) > 0 {
+			phrase := phraseCandidates[rand.Intn(len(phraseCandidates))]
+			post := addEmoji(applyNicknames(phrase.Text))
+
+			slog.Info("generated learned phrase",
+				slog.String("post", post),
+			)
+
+			return post
+		}
+
 		return ""
 	}
 
+	// 覚えた言葉からスタート
 	pair := pairCandidates[rand.Intn(len(pairCandidates))]
 
 	post := pair.Key + pair.Value
+	current := pair.Value
+
+	// 内部記憶 → 外部辞書から1～2語つなぐ
+	chainLength := 1 + rand.Intn(2)
+
+	for i := 0; i < chainLength; i++ {
+		next, ok := findNextWord(current)
+
+		if !ok || next == "" {
+			break
+		}
+
+		post += next
+		current = next
+	}
+
+	post = applyNicknames(post)
 	post = addEmoji(post)
 
 	slog.Info("generated learned post",
