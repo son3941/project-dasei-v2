@@ -756,29 +756,23 @@ func createReply(text string) string {
 		))
 
 	case strings.Contains(text, "だせい"):
-		if rand.Intn(100) < 70 {
-			post := generateMemoryPost()
-			if post != "" {
-				return addEmoji(post)
-			}
-		}
-
 		return addEmoji(randomReply(
 			"えーとえーと",
 			"おお",
 			"んー？",
+			"呼んだ？",
+			"なにー？",
 		))
 
 	default:
-		post := generateMemoryPost()
-		if post != "" {
-			return addEmoji(post)
-		}
-
 		return addEmoji(randomReply(
+			"なんでやねん",
+			"なるほど",
+			"わかる",
+			"そうそう",
+			"ほんと？",
+			"ええやん",
 			"おお",
-			"あ！！！",
-			"えーとえーと",
 		))
 	}
 }
