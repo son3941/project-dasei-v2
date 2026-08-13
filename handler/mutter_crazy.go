@@ -34,7 +34,7 @@ func crazyWords() []string {
 func createCrazyMutter(post string) string {
 
 	// 40%だけ荒ぶる
-	if rand.Intn(100) >= 30 {
+	if rand.Intn(100) >= 40 {
 		return post
 	}
 
@@ -46,15 +46,15 @@ func createCrazyMutter(post string) string {
 
 	for length < 140 {
 
-		switch rand.Intn(5) {
+		switch rand.Intn(10) {
 
-		case 0:
+		case 0, 1, 2, 3:
 			post := generateMemoryPost()
 			if post != "" {
 				result = append(result, randomPhrase(post))
 			}
 
-		case 1:
+		case 4, 5:
 			name := randomMember()
 			if name != "" {
 				result = append(result, randomPhrase(name))
@@ -64,7 +64,6 @@ func createCrazyMutter(post string) string {
 			words := crazyWords()
 			result = append(result, randomPhrase(words[rand.Intn(len(words))]))
 		}
-
 		last := result[len(result)-1]
 
 		if last == lastWord {
