@@ -700,16 +700,6 @@ func createReply(text string) string {
 		return reply
 	}
 
-	if rand.Intn(100) < 10 {
-		reply = replyFromTemplate(text)
-		if reply != "" {
-			slog.Info("template reply",
-				slog.String("reply", reply),
-			)
-			return reply
-		}
-	}
-
 	// 返信の10%だけインプレゾンビ
 	// 返信の10%だけインプレゾンビ
 	if rand.Intn(100) < 10 {
