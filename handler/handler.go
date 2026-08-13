@@ -1169,13 +1169,17 @@ func randomReply(list ...string) string {
 	return list[rand.Intn(len(list))]
 }
 func addEmoji(text string) string {
-	emojis := []string{
-		"🍆", "🛸", "🧦", "🪥", "🥒", "🦐", "🐟", "🪼", "🧃",
+	loadEmojiDictionary()
+
+	// 絵文字一覧の取得に失敗した場合は何もしない
+	if len(emojiList) == 0 {
+		return text
 	}
 
 	// 約80%の確率で絵文字を付ける
 	if rand.Intn(10) < 8 {
-		return text + emojis[rand.Intn(len(emojis))]
+		emoji := emojiList[rand.Intn(len(emojiList))]
+		return text + emoji
 	}
 
 	return text
