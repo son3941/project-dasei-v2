@@ -3,9 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"math/rand"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 type ExternalWord struct {
@@ -39,7 +42,146 @@ func LoadExternalDictionary() error {
 }
 
 // 外部辞書から、現在の言葉に続けられそうな言葉を探す
+// Wikipediaから文脈に関連する文章を取得する
+func fetchExternalTexts(context string) ([]string, error) {
+	context = strings.TrimSpace(context)
+	if context == "" {
+		return nil, nil
+	}
+
+	params := url.Values{}
+	params.Set("action", "query")
+	params.Set("list", "search")
+	params.Set("srsearch", context)
+	params.Set("format", "json")
+	params.Set("utf8", "1")
+	params.Set("srlimit", "5")
+
+	apiURL := "https://ja.wikipedia.org/w/api.php?" + params.Encode()
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", "project-dasei/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil
+	}
+
+	var result struct {
+		Query struct {
+			Search []struct {
+				Title   string `json:"title"`
+				Snippet string `json:"snippet"`
+			} `json:"search"`
+		} `json:"query"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	var texts []string
+
+	for _, item := range result.Query.Search {
+		if item.Title != "" {
+			texts = append(texts, item.Title)
+		}
+
+		if item.Snippet != "" {
+			texts = append(texts, item.Snippet)
+		}
+	}
+
+	return texts, nil
+}
+func pickExternalCandidate(texts []string, current string) string {
+	var candidates []string
+
+	for _, text := range texts {
+		text = strings.TrimSpace(text)
+
+		if text == "" {
+			continue
+		}
+
+		// Wikipediaの検索結果に含まれるHTMLタグを除去
+		text = strings.ReplaceAll(text, "<span class=\"searchmatch\">", "")
+		text = strings.ReplaceAll(text, "</span>", "")
+
+		// 文章を短いまとまりに分割
+		parts := strings.FieldsFunc(text, func(r rune) bool {
+			switch r {
+			case '、', '。', '！', '？', '!', '?', '・',
+				'「', '」', '（', '）', '(', ')', ' ', '\n', '\t':
+				return true
+			}
+			return false
+		})
+
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+
+			if part == "" || part == current {
+				continue
+			}
+
+			if isProtectedName(part) {
+				continue
+			}
+
+			if isMeaninglessLearnedText(part) {
+				continue
+			}
+
+			runes := []rune(part)
+
+			// 長すぎる検索結果は候補にしない
+			if len(runes) < 2 || len(runes) > 12 {
+				continue
+			}
+
+			// 現在の言葉が候補の近くに出ている場合は
+			// 文脈的に関連性が高い候補として優先する
+			if strings.Contains(text, current) {
+				candidates = append(candidates, part)
+				continue
+			}
+
+			// 現在の言葉と一緒に検索結果へ出てきた候補
+			candidates = append(candidates, part)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	// 完全にランダムではなく、
+	// 候補の中からランダムに選ぶことで予測不能性を残す
+	return candidates[rand.Intn(len(candidates))]
+}
 func findExternalNextWord(word string) (string, bool) {
+	// まずネットから文脈候補を探す
+	texts, err := fetchExternalTexts(word)
+	if err == nil {
+		if candidate := pickExternalCandidate(texts, word); candidate != "" {
+			return candidate, true
+		}
+	}
+
 	externalDictionaryMu.RLock()
 	defer externalDictionaryMu.RUnlock()
 
