@@ -718,58 +718,7 @@ func createReply(text string) string {
 			return zombieReply(text)
 		}
 	}
-
-	switch {
-
-	case strings.Contains(text, "おやすみ"):
-		return addEmoji(randomReply(
-			"おやすみ",
-			"なの！",
-			"ねるの？",
-		))
-
-	case strings.Contains(text, "疲れた"):
-		return addEmoji(randomReply(
-			"ほんと？",
-			"おお",
-			"だせいも",
-			"わかる",
-		))
-
-	case strings.Contains(text, "眠い"):
-		return addEmoji(randomReply(
-			"だせいも",
-			"ほんと？",
-			"おお",
-		))
-
-	case strings.Contains(text, "かわいい"):
-		return addEmoji(randomReply(
-			"へへ",
-			"えーとえーと",
-			"おお",
-		))
-
-	case strings.Contains(text, "だせい"):
-		return addEmoji(randomReply(
-			"えーとえーと",
-			"おお",
-			"んー？",
-			"呼んだ？",
-			"なにー？",
-		))
-
-	default:
-		return addEmoji(randomReply(
-			"なんでやねん",
-			"なるほど",
-			"わかる",
-			"そうそう",
-			"ほんと？",
-			"ええやん",
-			"おお",
-		))
-	}
+	return ""
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
