@@ -601,13 +601,8 @@ func createReply(text string) string {
 		slog.Info("force reply")
 
 		// 返信しない判定はスキップ
-	} else {
-		// 10%の確率で返信しない
-		if rand.Intn(100) >= 90 {
-			slog.Info("skip reply")
-			return ""
-		}
 	}
+
 	if strings.HasPrefix(text, "だせい、") &&
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ") {
@@ -718,7 +713,16 @@ func createReply(text string) string {
 			return zombieReply(text)
 		}
 	}
-	return ""
+	post := generateMemoryPost()
+	if post != "" {
+		return addEmoji(post)
+	}
+
+	return addEmoji(randomReply(
+		"おお",
+		"あ！！！",
+		"えーとえーと",
+	))
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
