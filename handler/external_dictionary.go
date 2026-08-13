@@ -108,7 +108,18 @@ func fetchExternalTexts(context string) ([]string, error) {
 	return texts, nil
 }
 func pickExternalCandidate(texts []string, current string) string {
-	var candidates []string
+	type candidate struct {
+		word  string
+		score int
+	}
+
+	var candidates []candidate
+
+	current = strings.TrimSpace(current)
+
+	if current == "" {
+		return ""
+	}
 
 	for _, text := range texts {
 		text = strings.TrimSpace(text)
@@ -117,15 +128,28 @@ func pickExternalCandidate(texts []string, current string) string {
 			continue
 		}
 
-		// Wikipediaの検索結果に含まれるHTMLタグを除去
-		text = strings.ReplaceAll(text, "<span class=\"searchmatch\">", "")
-		text = strings.ReplaceAll(text, "</span>", "")
+		text = strings.ReplaceAll(
+			text,
+			"<span class=\"searchmatch\">",
+			"",
+		)
 
-		// 文章を短いまとまりに分割
+		text = strings.ReplaceAll(
+			text,
+			"</span>",
+			"",
+		)
+
+		currentIndex := strings.Index(text, current)
+
+		if currentIndex < 0 {
+			continue
+		}
 		parts := strings.FieldsFunc(text, func(r rune) bool {
 			switch r {
 			case '、', '。', '！', '？', '!', '?', '・',
-				'「', '」', '（', '）', '(', ')', ' ', '\n', '\t':
+				'「', '」', '（', '）', '(', ')',
+				' ', '\n', '\t', '：', ':', '；', ';':
 				return true
 			}
 			return false
@@ -148,20 +172,35 @@ func pickExternalCandidate(texts []string, current string) string {
 
 			runes := []rune(part)
 
-			// 長すぎる検索結果は候補にしない
 			if len(runes) < 2 || len(runes) > 12 {
 				continue
 			}
 
-			// 現在の言葉が候補の近くに出ている場合は
-			// 文脈的に関連性が高い候補として優先する
-			if strings.Contains(text, current) {
-				candidates = append(candidates, part)
+			if strings.Contains(part, current) {
+				continue
+			}
+			partIndex := strings.Index(text, part)
+
+			if partIndex < 0 {
 				continue
 			}
 
-			// 現在の言葉と一緒に検索結果へ出てきた候補
-			candidates = append(candidates, part)
+			distance := partIndex - currentIndex
+
+			if distance < 0 {
+				distance = -distance
+			}
+
+			score := 1000 - distance
+
+			if score < 1 {
+				score = 1
+			}
+
+			candidates = append(candidates, candidate{
+				word:  part,
+				score: score,
+			})
 		}
 	}
 
@@ -169,9 +208,35 @@ func pickExternalCandidate(texts []string, current string) string {
 		return ""
 	}
 
-	// 完全にランダムではなく、
-	// 候補の中からランダムに選ぶことで予測不能性を残す
-	return candidates[rand.Intn(len(candidates))]
+	seen := make(map[string]bool)
+	unique := make([]candidate, 0, len(candidates))
+
+	for _, c := range candidates {
+		if seen[c.word] {
+			continue
+		}
+
+		seen[c.word] = true
+		unique = append(unique, c)
+	}
+
+	candidates = unique
+
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].score > candidates[i].score {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+
+	limit := len(candidates)
+
+	if limit > 8 {
+		limit = 8
+	}
+
+	return candidates[rand.Intn(limit)].word
 }
 func findExternalNextWord(word string) (string, bool) {
 	// まずネットから文脈候補を探す
