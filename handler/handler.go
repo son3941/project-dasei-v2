@@ -795,6 +795,63 @@ func nicknameOf(name string) string {
 func memberID(name string) string {
 	return name
 }
+func shapeDaseiParts(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+
+	var cleaned []string
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			cleaned = append(cleaned, part)
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return ""
+	}
+
+	if len(cleaned) == 1 {
+		return cleaned[0]
+	}
+
+	// 言葉同士の区切り方をランダムに変える
+	separators := []string{
+		"。 ",
+		"、 ",
+		"…… ",
+		"！ ",
+		"！？ ",
+	}
+
+	separator := separators[rand.Intn(len(separators))]
+
+	var result string
+
+	for i, part := range cleaned {
+		if i > 0 {
+			result += separator
+		}
+
+		result += part
+	}
+
+	// ときどき、まとまりの境目で改行する
+	if len(cleaned) >= 2 && rand.Intn(100) < 60 {
+		words := strings.Split(result, separator)
+
+		if len(words) >= 2 {
+			line := rand.Intn(len(words)-1) + 1
+			result = strings.Join(words[:line], separator) +
+				"\n" +
+				strings.Join(words[line:], separator)
+		}
+	}
+
+	return strings.TrimSpace(result)
+}
 func generateMemoryPost() string {
 	learnedWordsMu.RLock()
 
@@ -875,7 +932,10 @@ func generateMemoryPost() string {
 	// 覚えた言葉からスタート
 	pair := pairCandidates[rand.Intn(len(pairCandidates))]
 
-	post := pair.Key + pair.Value
+	parts := []string{
+		pair.Key + pair.Value,
+	}
+
 	current := pair.Value
 
 	// 内部記憶 → 外部辞書から1～2語つなぐ
@@ -888,9 +948,11 @@ func generateMemoryPost() string {
 			break
 		}
 
-		post += next
+		parts = append(parts, next)
 		current = next
 	}
+
+	post := shapeDaseiParts(parts)
 
 	post = applyNicknames(post)
 	post = addEmoji(post)
