@@ -781,57 +781,42 @@ func shapeDaseiParts(parts []string) string {
 		return ""
 	}
 
-	var cleaned []string
+	var result strings.Builder
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part != "" {
-			cleaned = append(cleaned, part)
+
+		if part == "" {
+			continue
 		}
+
+		result.WriteString(part)
 	}
 
-	if len(cleaned) == 0 {
+	text := strings.TrimSpace(result.String())
+
+	if text == "" {
 		return ""
 	}
 
-	if len(cleaned) == 1 {
-		return cleaned[0]
-	}
+	// 文章として読めるように、最後だけ軽く整える
+	if !strings.HasSuffix(text, "。") &&
+		!strings.HasSuffix(text, "！") &&
+		!strings.HasSuffix(text, "？") &&
+		!strings.HasSuffix(text, "…") &&
+		!strings.HasSuffix(text, "♪") {
 
-	// 言葉同士の区切り方をランダムに変える
-	separators := []string{
-		"。 ",
-		"、 ",
-		"…… ",
-		"！ ",
-		"！？ ",
-	}
-
-	separator := separators[rand.Intn(len(separators))]
-
-	var result string
-
-	for i, part := range cleaned {
-		if i > 0 {
-			result += separator
-		}
-
-		result += part
-	}
-
-	// ときどき、まとまりの境目で改行する
-	if len(cleaned) >= 2 && rand.Intn(100) < 60 {
-		words := strings.Split(result, separator)
-
-		if len(words) >= 2 {
-			line := rand.Intn(len(words)-1) + 1
-			result = strings.Join(words[:line], separator) +
-				"\n" +
-				strings.Join(words[line:], separator)
+		switch rand.Intn(4) {
+		case 0:
+			text += "。"
+		case 1:
+			text += "！"
+		case 2:
+			text += "……"
 		}
 	}
 
-	return strings.TrimSpace(result)
+	return text
 }
 func generateMemoryPost() string {
 	learnedWordsMu.RLock()
