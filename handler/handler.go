@@ -655,6 +655,70 @@ func generateGeminiReply(text string) string {
 
 	return reply
 }
+func polishDaseiReply(text string) string {
+	ctx := context.Background()
+
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  os.Getenv("GEMINI_API_KEY"),
+		Backend: genai.BackendGeminiAPI,
+	})
+	if err != nil {
+		slog.Error("Gemini polish client error",
+			slog.String("error", err.Error()),
+		)
+		return text
+	}
+
+	prompt := `あなたは「惰性」というbotの文章校正担当です。
+
+以下の文章は、惰性自身がランダムに生成した文章です。
+文章として不自然な部分があっても、それは惰性の個性です。
+
+あなたの仕事は文章を普通の文章に書き換えることではありません。
+元の文章をできるだけ残したまま、意味や文脈が明らかにつながっていない部分だけを最小限修正してください。
+
+ルール:
+- 元の言葉、ネタ、雰囲気をできるだけ残す
+- 新しい情報や話題を勝手に追加しない
+- 元の意味を大きく変更しない
+- 不条理、唐突さ、変な言い回しは惰性の個性なので残す
+- 荒ぶる雰囲気は残す
+- 厨二病の雰囲気は残す
+- おじさん構文の雰囲気は残す
+- 完全に自然な文章にしようとしない
+- 修正する必要がなければ元の文章をそのまま返す
+- 説明や解説は付けない
+- 校正後の文章だけを返す
+
+文章:
+` + text
+
+	result, err := client.Models.GenerateContent(
+		ctx,
+		"gemini-3.6-flash",
+		genai.Text(prompt),
+		nil,
+	)
+	if err != nil {
+		slog.Error("Gemini polish error",
+			slog.String("error", err.Error()),
+		)
+		return text
+	}
+
+	reply := strings.TrimSpace(result.Text())
+
+	if reply == "" {
+		return text
+	}
+
+	slog.Info("polished Dasei reply",
+		slog.String("before", text),
+		slog.String("after", reply),
+	)
+
+	return reply
+}
 func createReply(text string) string {
 
 	// 名前を呼ばれたら必ず返信
