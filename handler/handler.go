@@ -436,12 +436,6 @@ func rememberKnowledge(text, displayName string) {
 			continue
 		}
 
-		// 助詞・助動詞・記号は覚えない
-		switch features[0] {
-		case "助詞", "助動詞", "記号":
-			continue
-		}
-
 		slog.Info("remember",
 			slog.String("surface", token.Surface),
 			slog.Any("feature", features),
@@ -501,7 +495,7 @@ func rememberKnowledge(text, displayName string) {
 		pos := features[0]
 
 		switch pos {
-		case "名詞", "形容詞", "副詞", "動詞":
+		case "名詞", "形容詞", "副詞", "動詞", "助詞", "助動詞":
 			words = append(words, surface)
 		}
 	}
@@ -533,28 +527,7 @@ func rememberKnowledge(text, displayName string) {
 				slog.Error("SaveLearnedPair failed", slog.String("error", err.Error()))
 			}
 		}
-		if i+2 < len(words) {
 
-			exists = false
-
-			for _, pair := range learnedPairs {
-				if pair.Key == words[i] && pair.Value == words[i+2] {
-					exists = true
-					break
-				}
-			}
-
-			if !exists {
-				learnedPairs = append(learnedPairs, LearnedPair{
-					Key:   words[i],
-					Value: words[i+2],
-				})
-
-				if err := SaveLearnedPair(words[i], words[i+2]); err != nil {
-					slog.Error("SaveLearnedPair failed", slog.String("error", err.Error()))
-				}
-			}
-		}
 		learnedWordsMu.Unlock()
 
 		slog.Info("learned pair",
