@@ -689,7 +689,12 @@ func polishDaseiReply(text string) string {
 - 修正する必要がなければ元の文章をそのまま返す
 - 説明や解説は付けない
 - 校正後の文章だけを返す
-
+- 顔文字は崩さず維持
+- 単語として不自然な切り取りがあれば言葉になるよう修正する
+- 総合的に文章になるようにする
+- 文として途中で切れたように見える表現は修正し、最後まで文章として成立させる
+- 括弧、顔文字、記号などが途中で崩れている場合は、意味や雰囲気を変えない範囲で自然な形に整える
+- 意味が分からなくてもよいが、単語の羅列ではなく、文章として読める形にする
 文章:
 ` + text
 
@@ -1203,6 +1208,12 @@ func createChuunibyou() string {
 	}
 
 	result = applyNicknames(result)
+
+	if len([]rune(result)) > 149 {
+		result = string([]rune(result)[:149])
+	}
+
+	result = polishDaseiReply(result)
 
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])

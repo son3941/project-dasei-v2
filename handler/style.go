@@ -231,8 +231,9 @@ func ojisanTranslate(text string) string {
 
 	templates := []string{
 
-		`%sチャン😊💕
+		`%チャン😊💕
 
+%s
 
 %s
 
@@ -280,12 +281,16 @@ func ojisanTranslate(text string) string {
 	joke := jokes[rand.Intn(len(jokes))]
 	closing := closings[rand.Intn(len(closings))]
 
-	return fmt.Sprintf(
+	result := fmt.Sprintf(
 		template,
 		body,
 		joke,
 		closing,
 	)
+
+	result = polishDaseiReply(result)
+
+	return result
 }
 func chaosTranslate(text string) string {
 
