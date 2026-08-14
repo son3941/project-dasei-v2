@@ -4,10 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"math/rand"
+	"os"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
+
+	"google.golang.org/genai"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
@@ -594,6 +597,64 @@ func isNicknameCommand(text string) bool {
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
 }
+func generateGeminiReply(text string) string {
+	ctx := context.Background()
+
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  os.Getenv("GEMINI_API_KEY"),
+		Backend: genai.BackendGeminiAPI,
+	})
+	if err != nil {
+		slog.Error("Gemini client error",
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+
+	prompt := `あなたはmixi2コミュニティ「純喫茶 空模様」の返信bot「惰性」です。
+
+以下のポスト内容を読んで、その内容に自然に反応する短い日本語の返信を1つだけ作ってください。
+
+ルール:
+- ポストの内容にちゃんと意味的に反応する
+- 日本語として自然にする
+- 友達同士の軽い会話のようにする
+- 長文にしない
+- 説明文を書かない
+- 「返信:」などの前置きを付けない
+- 強い言葉や批判は使わない
+- 絵文字は付けない
+- ポスト内容をそのまま繰り返すだけにしない
+- 惰性らしい、少しゆるい雰囲気にする
+
+ポスト:
+` + text
+
+	result, err := client.Models.GenerateContent(
+		ctx,
+		"gemini-3.6-flash",
+		genai.Text(prompt),
+		nil,
+	)
+	if err != nil {
+		slog.Error("Gemini generate error",
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+
+	reply := strings.TrimSpace(result.Text())
+
+	if reply == "" {
+		return ""
+	}
+
+	slog.Info("generated Gemini reply",
+		slog.String("reply", reply),
+	)
+
+	return reply
+}
 func createReply(text string) string {
 
 	// 名前を呼ばれたら必ず返信
@@ -694,7 +755,11 @@ func createReply(text string) string {
 	if reply != "" {
 		return reply
 	}
-
+	// Geminiでポスト内容に沿った返信を生成
+	geminiReply := generateGeminiReply(text)
+	if geminiReply != "" {
+		return addEmoji(geminiReply)
+	}
 	// 返信の10%だけインプレゾンビ
 	// 返信の10%だけインプレゾンビ
 	if rand.Intn(100) < 10 {
