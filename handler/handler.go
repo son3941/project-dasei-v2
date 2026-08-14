@@ -1126,6 +1126,51 @@ func rememberMember(id, name string) {
 
 	members[id] = name
 }
+func (h *Handler) getMemberPosts(
+	authCtx context.Context,
+	communityID string,
+	memberID string,
+) ([]string, error) {
+
+	if communityID == "" || memberID == "" {
+		return nil, nil
+	}
+
+	resp, err := h.apiClient.GetCommunityTimeline(
+		authCtx,
+		&application_apiv1.GetCommunityTimelineRequest{
+			CommunityId: communityID,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var texts []string
+
+	for _, post := range resp.GetPosts() {
+		if post == nil {
+			continue
+		}
+
+		if post.GetCreatorId() != memberID {
+			continue
+		}
+
+		text := strings.TrimSpace(post.GetText())
+		if text == "" {
+			continue
+		}
+
+		texts = append(texts, text)
+
+		if len(texts) >= 10 {
+			break
+		}
+	}
+
+	return texts, nil
+}
 func GenerateReply(text string, isMention bool) string {
 	if reply := fixedReply(text); reply != "" {
 		return reply

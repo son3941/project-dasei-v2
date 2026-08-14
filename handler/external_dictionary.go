@@ -107,6 +107,29 @@ func fetchExternalTexts(context string) ([]string, error) {
 
 	return texts, nil
 }
+func isPhoneNumberLike(text string) bool {
+	digits := ""
+
+	for _, r := range text {
+		if r >= '0' && r <= '9' {
+			digits += string(r)
+			continue
+		}
+
+		switch r {
+		case '-', '−', 'ー', '–', '—', ' ', '　', '(', ')', '（', '）':
+			continue
+		default:
+			return false
+		}
+	}
+
+	if len(digits) != 10 && len(digits) != 11 {
+		return false
+	}
+
+	return strings.HasPrefix(digits, "0")
+}
 func pickExternalCandidate(texts []string, current string) string {
 	type candidate struct {
 		word  string
@@ -167,6 +190,10 @@ func pickExternalCandidate(texts []string, current string) string {
 			}
 
 			if isMeaninglessLearnedText(part) {
+				continue
+			}
+
+			if isPhoneNumberLike(part) {
 				continue
 			}
 
