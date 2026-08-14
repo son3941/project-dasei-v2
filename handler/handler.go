@@ -683,8 +683,8 @@ func polishDaseiReply(text string) string {
 - 元の意味を大きく変更しない
 - 不条理、唐突さ、変な言い回しは惰性の個性なので残す
 - 荒ぶる雰囲気は残す
-- 厨二病の雰囲気は残す
-- おじさん構文の雰囲気は残す
+- 厨二病は全力で厨二病に変換する
+- おじさん構文は全力でおじさん構文に変換する
 - 完全に自然な文章にしようとしない
 - 修正する必要がなければ元の文章をそのまま返す
 - 説明や解説は付けない
@@ -819,11 +819,7 @@ func createReply(text string) string {
 	if reply != "" {
 		return reply
 	}
-	// Geminiでポスト内容に沿った返信を生成
-	geminiReply := generateGeminiReply(text)
-	if geminiReply != "" {
-		return addEmoji(geminiReply)
-	}
+
 	// 返信の10%だけインプレゾンビ
 	// 返信の10%だけインプレゾンビ
 	if rand.Intn(100) < 10 {
@@ -844,14 +840,16 @@ func createReply(text string) string {
 	}
 	post := generateMemoryPost()
 	if post != "" {
-		return addEmoji(post)
+		return addEmoji(polishDaseiReply(post))
 	}
 
-	return addEmoji(randomReply(
+	reply = randomReply(
 		"おお",
 		"あ！！！",
 		"えーとえーと",
-	))
+	)
+
+	return addEmoji(polishDaseiReply(reply))
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
