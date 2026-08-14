@@ -1,7 +1,17 @@
 package handler
 
-import "strings"
+import (
+	"log/slog"
+	"strings"
+)
 
+func mentionReply(text string) string {
+	slog.Info("mention reply",
+		slog.String("text", text),
+	)
+
+	return createReply(text)
+}
 func fixedReply(text string) string {
 
 	t := strings.TrimSpace(text)

@@ -1172,6 +1172,12 @@ func (h *Handler) getMemberPosts(
 	return texts, nil
 }
 func GenerateReply(text string, isMention bool) string {
+	if isMention {
+		if reply := mentionReply(text); reply != "" {
+			return reply
+		}
+	}
+
 	if reply := fixedReply(text); reply != "" {
 		return reply
 	}
