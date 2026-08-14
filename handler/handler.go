@@ -4,13 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"math/rand"
-	"os"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
-
-	"google.golang.org/genai"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
@@ -570,63 +567,252 @@ func isNicknameCommand(text string) bool {
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
 }
-func generateGeminiReply(text string) string {
-	ctx := context.Background()
+func generateNaturalReply(text string) string {
+	text = strings.TrimSpace(text)
 
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  os.Getenv("GEMINI_API_KEY"),
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		slog.Error("Gemini client error",
-			slog.String("error", err.Error()),
+	if text == "" {
+		return ""
+	}
+
+	// 感謝・お礼
+	if strings.Contains(text, "ありがとう") ||
+		strings.Contains(text, "ありがと") {
+		return randomReply(
+			"どういたしまして",
+			"いえいえ",
+			"こちらこそだよ",
+			"気にしないで",
 		)
-		return ""
 	}
 
-	prompt := `あなたはmixi2コミュニティ「純喫茶 空模様」の返信bot「惰性」です。
-
-以下のポスト内容を読んで、その内容に自然に反応する短い日本語の返信を1つだけ作ってください。
-
-ルール:
-- ポストの内容にちゃんと意味的に反応する
-- 日本語として自然にする
-- 友達同士の軽い会話のようにする
-- 長文にしない
-- 説明文を書かない
-- 「返信:」などの前置きを付けない
-- 強い言葉や批判は使わない
-- 絵文字は付けない
-- ポスト内容をそのまま繰り返すだけにしない
-- 惰性らしい、少しゆるい雰囲気にする
-
-ポスト:
-` + text
-
-	result, err := client.Models.GenerateContent(
-		ctx,
-		"gemini-3.6-flash",
-		genai.Text(prompt),
-		nil,
-	)
-	if err != nil {
-		slog.Error("Gemini generate error",
-			slog.String("error", err.Error()),
+	// 挨拶
+	if strings.Contains(text, "おはよう") {
+		return randomReply(
+			"おはよう",
+			"おはよう、今日もよろしく",
+			"おはよう、いい朝だね",
 		)
-		return ""
 	}
 
-	reply := strings.TrimSpace(result.Text())
-
-	if reply == "" {
-		return ""
+	if strings.Contains(text, "こんにちは") {
+		return randomReply(
+			"こんにちは",
+			"こんにちは、今日もよろしく",
+			"こんにちは、元気そうだね",
+		)
 	}
 
-	slog.Info("generated Gemini reply",
-		slog.String("reply", reply),
+	if strings.Contains(text, "こんばんは") {
+		return randomReply(
+			"こんばんは",
+			"こんばんは、ゆっくりしてね",
+			"こんばんは、今日もおつかれさま",
+		)
+	}
+
+	// 疲れ・体調
+	if strings.Contains(text, "疲れた") ||
+		strings.Contains(text, "疲れちゃった") ||
+		strings.Contains(text, "しんどい") ||
+		strings.Contains(text, "しんどかった") {
+		return randomReply(
+			"それはおつかれさま",
+			"大変だったね、ゆっくり休んでね",
+			"今日はゆっくりしたほうがよさそうだね",
+			"おつかれさま、無理しないでね",
+		)
+	}
+
+	if strings.Contains(text, "眠い") ||
+		strings.Contains(text, "眠た") ||
+		strings.Contains(text, "寝不足") {
+		return randomReply(
+			"眠いときは無理しないでね",
+			"今日は早めに休めるといいね",
+			"それは眠くなるね",
+			"ゆっくり休んでね",
+		)
+	}
+
+	// 悲しみ・落ち込み
+	if strings.Contains(text, "悲しい") ||
+		strings.Contains(text, "かなしい") ||
+		strings.Contains(text, "つらい") ||
+		strings.Contains(text, "辛い") ||
+		strings.Contains(text, "落ち込") {
+		return randomReply(
+			"よしよしヾ(・ω・｀)",
+			"無理しなくていいと思うよ",
+			"そういう日もあるよ",
+			"ゆっくりでいいと思うよ",
+		)
+	}
+	// 怒り・不満
+	if strings.Contains(text, "ムカつ") ||
+		strings.Contains(text, "むかつ") ||
+		strings.Contains(text, "腹立") ||
+		strings.Contains(text, "イライラ") ||
+		strings.Contains(text, "最悪") {
+		return randomReply(
+			"アカンなぁ",
+			"どんまいだよ",
+			"(# ﾟДﾟ)",
+			"それはヤダね",
+		)
+	}
+
+	// 喜び・達成
+	if strings.Contains(text, "嬉しい") ||
+		strings.Contains(text, "うれしい") ||
+		strings.Contains(text, "楽しい") ||
+		strings.Contains(text, "楽しかった") {
+		return randomReply(
+			"ええやん",
+			"いいね、楽しそう",
+			"それは嬉しいね",
+			"ステキやん！",
+		)
+	}
+
+	if strings.Contains(text, "できた") ||
+		strings.Contains(text, "成功") ||
+		strings.Contains(text, "完成") ||
+		strings.Contains(text, "終わった") {
+		return randomReply(
+			"おお、よかった！",
+			"最高",
+			"ええやん！",
+			"おつかれさま！やったね！",
+		)
+	}
+
+	// 食事・食べ物
+	if strings.Contains(text, "美味しくない") ||
+		strings.Contains(text, "美味しくなかった") ||
+		strings.Contains(text, "まずい") ||
+		strings.Contains(text, "不味い") {
+		return randomReply(
+			"こまったね",
+			"悲しいねぇ",
+			"次は美味しいものに当たるといいね",
+		)
+	}
+
+	if strings.Contains(text, "食べた") ||
+		strings.Contains(text, "食べてきた") ||
+		strings.Contains(text, "食べる") ||
+		strings.Contains(text, "ご飯") ||
+		strings.Contains(text, "ごはん") ||
+		strings.Contains(text, "料理") ||
+		strings.Contains(text, "ラーメン") ||
+		strings.Contains(text, "寿司") ||
+		strings.Contains(text, "焼肉") {
+		return randomReply(
+			"よすぎる",
+			"うらやましい！",
+			"えー！いいな！",
+			"お腹すいてきた…",
+		)
+	}
+	// 買い物・欲しいもの
+	if strings.Contains(text, "買おう") ||
+		strings.Contains(text, "買いたい") ||
+		strings.Contains(text, "欲しい") ||
+		strings.Contains(text, "ほしい") ||
+		strings.Contains(text, "買って") {
+		return randomReply(
+			"買っちゃえ！",
+			"ね！気になる！",
+			"悩むよねー(´・ω・`)",
+			"いつかね",
+		)
+	}
+
+	// 仕事・学校
+	if strings.Contains(text, "仕事") ||
+		strings.Contains(text, "会社") ||
+		strings.Contains(text, "学校") ||
+		strings.Contains(text, "出勤") ||
+		strings.Contains(text, "退勤") {
+		if strings.Contains(text, "終わ") ||
+			strings.Contains(text, "帰") {
+			return randomReply(
+				"おきばりやす",
+				"えらい！！",
+				"帰ったらゆっくりしよ！",
+			)
+		}
+
+		return randomReply(
+			"今日もおつかれさま",
+			"無理しないでね",
+			"大変そうだね",
+			"頑張ってるね",
+		)
+	}
+
+	// 予定・旅行・お出かけ
+	if strings.Contains(text, "旅行") ||
+		strings.Contains(text, "お出かけ") ||
+		strings.Contains(text, "出かけ") ||
+		strings.Contains(text, "遊びに") {
+		return randomReply(
+			"ええたん！",
+			"GO！GO!",
+			"たのしみ！",
+			"気をつけてね！",
+		)
+	}
+	// 天気・気温
+	if strings.Contains(text, "暑い") ||
+		strings.Contains(text, "暑かった") {
+		return randomReply(
+			"西川貴教のせい",
+			"松岡修造のせい",
+			"水分補給忘れずにね",
+		)
+	}
+
+	if strings.Contains(text, "寒い") ||
+		strings.Contains(text, "寒かった") {
+		return randomReply(
+			"西川貴教のせい",
+			"寒いよね((((；ﾟДﾟ))))",
+			"あったかくしてね",
+		)
+	}
+
+	// 質問
+	if strings.Contains(text, "？") ||
+		strings.Contains(text, "?") {
+		return randomReply(
+			"どうなんだろうね",
+			"そういうこともあるかもね",
+			"気になるところだね",
+			"どうだろう、難しいね",
+		)
+	}
+
+	// 基本的な肯定
+	if strings.Contains(text, "最高") ||
+		strings.Contains(text, "良かった") ||
+		strings.Contains(text, "よかった") {
+		return randomReply(
+			"それはよかったね",
+			"いいね",
+			"それは嬉しいね",
+			"よかったよかった",
+		)
+	}
+
+	// 最終フォールバック
+	return randomReply(
+		"そうなんだね",
+		"なるほど",
+		"そういうことか",
+		"いいね",
+		"それは気になるね",
 	)
-
-	return reply
 }
 func polishDaseiReply(text string) string {
 	return text
