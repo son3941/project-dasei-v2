@@ -933,11 +933,59 @@ func generateNaturalReply(text string) string {
 	// 質問
 	if strings.Contains(text, "？") ||
 		strings.Contains(text, "?") {
+
+		// 好みを聞かれた
+		if strings.Contains(text, "好き") ||
+			strings.Contains(text, "好み") {
+			return randomReply(
+				"だせいはご飯派かな",
+				"どっちも好きだよ",
+				"その日の気分かな",
+				"だせいはそっちが好きかも",
+			)
+		}
+
+		// どちらかを選ぶ質問
+		if strings.Contains(text, "どっち") ||
+			strings.Contains(text, "どちら") {
+			return randomReply(
+				"だせいはこっちかな",
+				"うーん、迷うね",
+				"どっちもいいな",
+				"その日の気分かな",
+			)
+		}
+
+		// 理由を聞かれた
+		if strings.Contains(text, "なんで") ||
+			strings.Contains(text, "なぜ") ||
+			strings.Contains(text, "どうして") {
+			return randomReply(
+				"なんとなくだよ",
+				"そういう気分だったのかも",
+				"だせいにもよくわからない",
+				"なんでだろうね",
+			)
+		}
+
+		// 意見を聞かれた
+		if strings.Contains(text, "どう思う") ||
+			strings.Contains(text, "どう思います") ||
+			strings.Contains(text, "どうかな") {
+			return randomReply(
+				"いいと思うよ",
+				"だせいはアリだと思う",
+				"それもいいんじゃないかな",
+				"だせいは好きかも",
+			)
+		}
+
+		// その他の質問
 		return randomReply(
 			"どうなんだろうね",
-			"そういうこともあるかもね",
+			"だせいはそう思うかな",
 			"気になるところだね",
-			"どうだろう、難しいね",
+			"うーん、難しいね",
 		)
 	}
 
