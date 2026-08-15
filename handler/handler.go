@@ -701,7 +701,14 @@ func generateNaturalReply(text string) string {
 		slog.String("intent", intent),
 		slog.String("text", text),
 	)
-
+	if intent == "hot" {
+		return randomReply(
+			"暑いね、今日も夏って感じだね",
+			"暑いね、水分補給しないとね",
+			"今日も暑そうだね",
+			"これは暑さにやられるね",
+		)
+	}
 	// 感謝・お礼
 	if strings.Contains(text, "ありがとう") ||
 		strings.Contains(text, "ありがと") {
