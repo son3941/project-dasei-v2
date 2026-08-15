@@ -936,18 +936,14 @@ func createReply(text string) string {
 			return zombieReply(text)
 		}
 	}
-	post := generateMemoryPost()
-	if post != "" {
-		return addEmoji(polishDaseiReply(post))
+	// 自然な日本語で返信
+	reply = generateNaturalReply(text)
+
+	if reply != "" {
+		return reply
 	}
 
-	reply = randomReply(
-		"おお",
-		"あ！！！",
-		"えーとえーと",
-	)
-
-	return addEmoji(polishDaseiReply(reply))
+	return "そうなんだね"
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
