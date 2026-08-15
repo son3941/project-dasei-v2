@@ -567,12 +567,140 @@ func isNicknameCommand(text string) bool {
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
 }
+func detectIntent(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return "empty"
+	}
+
+	// 質問
+	if strings.Contains(text, "？") ||
+		strings.Contains(text, "?") {
+		return "question"
+	}
+
+	// 感謝
+	if strings.Contains(text, "ありがとう") ||
+		strings.Contains(text, "ありがと") {
+		return "thanks"
+	}
+
+	// 挨拶
+	if strings.Contains(text, "おはよう") ||
+		strings.Contains(text, "こんにちは") ||
+		strings.Contains(text, "こんばんは") {
+		return "greeting"
+	}
+
+	// 悲しみ・落ち込み
+	if strings.Contains(text, "悲しい") ||
+		strings.Contains(text, "かなしい") ||
+		strings.Contains(text, "つらい") ||
+		strings.Contains(text, "辛い") ||
+		strings.Contains(text, "落ち込") {
+		return "sad"
+	}
+
+	// 怒り・不満
+	if strings.Contains(text, "ムカつ") ||
+		strings.Contains(text, "むかつ") ||
+		strings.Contains(text, "腹立") ||
+		strings.Contains(text, "イライラ") ||
+		strings.Contains(text, "最悪") {
+		return "angry"
+	}
+
+	// 疲れ・体調
+	if strings.Contains(text, "疲れ") ||
+		strings.Contains(text, "しんど") ||
+		strings.Contains(text, "眠い") ||
+		strings.Contains(text, "眠た") ||
+		strings.Contains(text, "寝不足") ||
+		strings.Contains(text, "腰が痛") {
+		return "condition"
+	}
+
+	// 食事
+	if strings.Contains(text, "食べ") ||
+		strings.Contains(text, "ご飯") ||
+		strings.Contains(text, "ごはん") ||
+		strings.Contains(text, "料理") ||
+		strings.Contains(text, "ラーメン") ||
+		strings.Contains(text, "寿司") ||
+		strings.Contains(text, "焼肉") {
+		return "food"
+	}
+	// 買い物
+	if strings.Contains(text, "買おう") ||
+		strings.Contains(text, "買いたい") ||
+		strings.Contains(text, "欲しい") ||
+		strings.Contains(text, "ほしい") ||
+		strings.Contains(text, "買って") {
+		return "shopping"
+	}
+
+	// 仕事・学校
+	if strings.Contains(text, "仕事") ||
+		strings.Contains(text, "会社") ||
+		strings.Contains(text, "学校") ||
+		strings.Contains(text, "出勤") ||
+		strings.Contains(text, "退勤") {
+		return "work"
+	}
+
+	// 旅行・外出
+	if strings.Contains(text, "旅行") ||
+		strings.Contains(text, "お出かけ") ||
+		strings.Contains(text, "出かけ") ||
+		strings.Contains(text, "遊びに") {
+		return "outing"
+	}
+
+	// 天気・気温
+	if strings.Contains(text, "暑い") ||
+		strings.Contains(text, "暑かった") ||
+		strings.Contains(text, "暑く") {
+		return "hot"
+	}
+
+	if strings.Contains(text, "寒い") ||
+		strings.Contains(text, "寒かった") ||
+		strings.Contains(text, "寒く") {
+		return "cold"
+	}
+
+	// 喜び
+	if strings.Contains(text, "嬉しい") ||
+		strings.Contains(text, "うれしい") ||
+		strings.Contains(text, "楽しい") ||
+		strings.Contains(text, "楽しかった") {
+		return "happy"
+	}
+
+	// 達成
+	if strings.Contains(text, "できた") ||
+		strings.Contains(text, "成功") ||
+		strings.Contains(text, "完成") ||
+		strings.Contains(text, "終わった") {
+		return "achievement"
+	}
+
+	return "other"
+}
 func generateNaturalReply(text string) string {
 	text = strings.TrimSpace(text)
 
 	if text == "" {
 		return ""
 	}
+
+	intent := detectIntent(text)
+
+	slog.Info("detected intent",
+		slog.String("intent", intent),
+		slog.String("text", text),
+	)
 
 	// 感謝・お礼
 	if strings.Contains(text, "ありがとう") ||
