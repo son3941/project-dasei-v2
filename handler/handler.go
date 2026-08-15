@@ -827,9 +827,21 @@ func generateNaturalReply(text string) string {
 		strings.Contains(text, "まずい") ||
 		strings.Contains(text, "不味い") {
 		return randomReply(
-			"こまったね",
-			"悲しいねぇ",
+			"それは残念だね",
+			"せっかくなのにねぇ",
 			"次は美味しいものに当たるといいね",
+		)
+	}
+
+	if strings.Contains(text, "美味しい") ||
+		strings.Contains(text, "おいしい") ||
+		strings.Contains(text, "うまい") ||
+		strings.Contains(text, "美味しかった") {
+		return randomReply(
+			"それはよすぎる",
+			"美味しいものは幸せだね",
+			"いいもの食べてるね",
+			"お腹すいてきた…",
 		)
 	}
 
@@ -846,7 +858,8 @@ func generateNaturalReply(text string) string {
 			"よすぎる",
 			"うらやましい！",
 			"えー！いいな！",
-			"お腹すいてきた…",
+			"それ聞いたらお腹すいてきた…",
+			"いいもの食べてるね",
 		)
 	}
 	// 買い物・欲しいもの
