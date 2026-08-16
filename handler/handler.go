@@ -1146,16 +1146,16 @@ func generateReplyWithWebCheck(text string) string {
 		return ""
 	}
 
-	// ネット検索
+	// Wikipedia検索
 	webResult := searchWikipedia(text)
 
-	// 今はネット結果をそのまま返事には使わない
-	// まず正常に取得できることだけ確認する
 	if webResult != "" {
-		slog.Info("web check",
+		slog.Info("Wikipedia result",
 			slog.String("text", text),
 			slog.String("result", webResult),
 		)
+
+		reply = reply + "（" + webResult + "）"
 	}
 
 	return reply
