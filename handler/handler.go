@@ -2,8 +2,12 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"log"
 	"log/slog"
 	"math/rand"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -182,7 +186,10 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 
 // Handle processes events from mixi2.
 func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
-	slog.Info("EVENT TYPE", slog.Int("event_type", int(ev.EventType)))
+	slog.Info("EVENT TYPE",
+		slog.Int("event_type", int(ev.EventType)),
+		slog.String("event_id", ev.EventId),
+	)
 	switch ev.EventType {
 	case constv1.EventType_EVENT_TYPE_POST_CREATED:
 		post := ev.GetPostCreatedEvent()
@@ -566,6 +573,55 @@ func isNicknameCommand(text string) bool {
 	return strings.HasPrefix(text, "だせい、") &&
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
+}
+func searchWikipedia(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	searchURL := "https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=" +
+		url.QueryEscape(text) +
+		"&format=json&utf8=1"
+
+	req, err := http.NewRequest("GET", searchURL, nil)
+	if err != nil {
+		log.Printf("Wikipediaリクエスト作成エラー: %v", err)
+		return ""
+	}
+
+	req.Header.Set("User-Agent", "Dasei/1.0 (mixi2 community plugin)")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("Wikipedia HTTPエラー: %v", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Wikipedia HTTPステータス: %d", resp.StatusCode)
+		return ""
+	}
+	var data struct {
+		Query struct {
+			Search []struct {
+				Title   string `json:"title"`
+				Snippet string `json:"snippet"`
+			} `json:"search"`
+		} `json:"query"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return ""
+	}
+
+	if len(data.Query.Search) == 0 {
+		return ""
+	}
+
+	return data.Query.Search[0].Title
 }
 func isKaomojiPost(text string) bool {
 	text = strings.TrimSpace(text)
@@ -1081,6 +1137,33 @@ func generateNaturalReply(text string) string {
 		"いいね",
 		"それは気になるね",
 	)
+}
+func generateReplyWithWebCheck(text string) string {
+	// まず、現在のだせいの返事を作る
+	reply := generateNaturalReply(text)
+
+	if reply == "" {
+		return ""
+	}
+
+	// ネット検索
+	webResult := searchWikipedia(text)
+
+	// 今はネット結果をそのまま返事には使わない
+	// まず正常に取得できることだけ確認する
+	if webResult != "" {
+		slog.Info("web check",
+			slog.String("text", text),
+			slog.String("result", webResult),
+		)
+	}
+
+	return reply
+}
+
+// CreateReplyWithWebCheck は外部から呼び出すための返信生成入口
+func CreateReplyWithWebCheck(text string) string {
+	return generateReplyWithWebCheck(text)
 }
 func polishDaseiReply(text string) string {
 	return text
