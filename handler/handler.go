@@ -567,6 +567,36 @@ func isNicknameCommand(text string) bool {
 		strings.Contains(text, "さんは") &&
 		strings.Contains(text, "だよ")
 }
+func isKaomojiPost(text string) bool {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return false
+	}
+
+	// 顔文字でよく使われる記号が含まれているか
+	kaomojiSymbols := []string{
+		"(*",
+		"*)",
+		"＼(^",
+		"／",
+		"＼",
+		"ヾ",
+		"ﾟ",
+		"ω",
+		"＾",
+		"^",
+		"三",
+	}
+
+	for _, symbol := range kaomojiSymbols {
+		if strings.Contains(text, symbol) {
+			return true
+		}
+	}
+
+	return false
+}
 func detectIntent(text string) string {
 	text = strings.TrimSpace(text)
 
@@ -693,6 +723,15 @@ func generateNaturalReply(text string) string {
 
 	if text == "" {
 		return ""
+	}
+	// 顔文字・記号っぽい投稿
+	if isKaomojiPost(text) {
+		return randomReply(
+			"わーい",
+			"楽しそうだね",
+			"なんか嬉しそうだね",
+			"お、元気だね",
+		)
 	}
 	// 質問への返答
 	if strings.Contains(text, "どっちが好き") {
