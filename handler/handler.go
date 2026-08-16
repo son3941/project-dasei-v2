@@ -694,7 +694,26 @@ func generateNaturalReply(text string) string {
 	if text == "" {
 		return ""
 	}
+	// 質問への返答
+	if strings.Contains(text, "どっちが好き") {
+		return randomReply(
+			"どっちも好きだよ",
+			"うーん、迷うね",
+			"どっちもいいね",
+		)
+	}
 
+	if strings.Contains(text, "好き？") ||
+		strings.Contains(text, "好きですか") ||
+		strings.Contains(text, "好きなの？") {
+
+		return randomReply(
+			"好きだよ",
+			"けっこう好きだよ",
+			"うーん、どうだろう",
+			"気分によるかな",
+		)
+	}
 	intent := detectIntent(text)
 
 	slog.Info("detected intent",
