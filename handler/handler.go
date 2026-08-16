@@ -829,7 +829,7 @@ func generateNaturalReply(text string) string {
 		return randomReply(
 			"それは残念だね",
 			"せっかくなのにねぇ",
-			"次は美味しいものに当たるといいね",
+			"どんまい",
 		)
 	}
 
@@ -840,11 +840,25 @@ func generateNaturalReply(text string) string {
 		return randomReply(
 			"それはよすぎる",
 			"美味しいものは幸せだね",
-			"いいもの食べてるね",
+			"ええもん食うてるやん",
 			"お腹すいてきた…",
 		)
 	}
+	// 食べ物についての質問
+	if strings.Contains(text, "どっち") ||
+		strings.Contains(text, "どちら") ||
+		strings.Contains(text, "好き？") ||
+		strings.Contains(text, "好きー？") ||
+		strings.Contains(text, "苦手？") ||
+		strings.Contains(text, "嫌い？") {
 
+		return randomReply(
+			"だせいはご飯派かな",
+			"どっちも好きだよ",
+			"うーん、迷うね",
+			"気分によるかな",
+		)
+	}
 	if strings.Contains(text, "食べた") ||
 		strings.Contains(text, "食べてきた") ||
 		strings.Contains(text, "食べる") ||
@@ -859,7 +873,7 @@ func generateNaturalReply(text string) string {
 			"うらやましい！",
 			"えー！いいな！",
 			"それ聞いたらお腹すいてきた…",
-			"いいもの食べてるね",
+			"ええもん食うてるな自分",
 		)
 	}
 	// 買い物・欲しいもの
@@ -905,7 +919,7 @@ func generateNaturalReply(text string) string {
 		strings.Contains(text, "出かけ") ||
 		strings.Contains(text, "遊びに") {
 		return randomReply(
-			"ええたん！",
+			"ええやん！",
 			"GO！GO!",
 			"たのしみ！",
 			"気をつけてね！",
@@ -964,7 +978,7 @@ func generateNaturalReply(text string) string {
 				"なんとなくだよ",
 				"そういう気分だったのかも",
 				"だせいにもよくわからない",
-				"なんでだろうね",
+				"なんでやろね",
 			)
 		}
 
@@ -982,7 +996,7 @@ func generateNaturalReply(text string) string {
 
 		// その他の質問
 		return randomReply(
-			"どうなんだろうね",
+			"どうなんやろ",
 			"だせいはそう思うかな",
 			"気になるところだね",
 			"うーん、難しいね",
@@ -997,7 +1011,7 @@ func generateNaturalReply(text string) string {
 			"それはよかったね",
 			"いいね",
 			"それは嬉しいね",
-			"よかったよかった",
+			"やったー！",
 		)
 	}
 
