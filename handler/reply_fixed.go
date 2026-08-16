@@ -10,58 +10,22 @@ func mentionReply(text string) string {
 		slog.String("text", text),
 	)
 
-	t := strings.TrimSpace(text)
+	// 自分へのメンション部分を取り除く
+	text = strings.ReplaceAll(text, "@dasei", "")
+	text = strings.ReplaceAll(text, "@惰性", "")
+	text = strings.TrimSpace(text)
 
-	// メンション部分を取り除く
-	t = strings.TrimSpace(strings.TrimPrefix(t, "だせい"))
+	// メンションだけだった場合
+	if text == "" {
+		return addEmoji("呼んだだせい？")
+	}
 
-	// 「、」「,」などを取り除く
-	t = strings.TrimLeft(t, "、, ")
-
-	// まず既存の固定返信を確認
-	if reply := fixedReply(t); reply != "" {
+	// メンションを除いた本文で通常の返信処理を行う
+	if reply := fixedReply(text); reply != "" {
 		return reply
 	}
 
-	// 質問への返信
-	if strings.Contains(t, "？") || strings.Contains(t, "?") ||
-		strings.Contains(t, "ってどんな") ||
-		strings.Contains(t, "って何") ||
-		strings.Contains(t, "とは") {
-
-		return addEmoji("うーん、それについて考えてみるね")
-	}
-
-	// あいさつ
-	if strings.Contains(t, "おはよう") {
-		return addEmoji("おはよう！今日もよろしくね")
-	}
-
-	if strings.Contains(t, "こんにちは") {
-		return addEmoji("こんにちは！")
-	}
-
-	if strings.Contains(t, "こんばんは") {
-		return addEmoji("こんばんは！")
-	}
-
-	// お礼
-	if strings.Contains(t, "ありがとう") ||
-		strings.Contains(t, "ありがと") {
-
-		return addEmoji("どういたしまして！")
-	}
-
-	// 褒められた場合
-	if strings.Contains(t, "えらい") ||
-		strings.Contains(t, "すごい") ||
-		strings.Contains(t, "かわいい") {
-
-		return addEmoji("えへへ、ありがとう！")
-	}
-
-	// その他は通常の返信生成へ
-	return createReply(t)
+	return createReply(text)
 }
 func fixedReply(text string) string {
 
