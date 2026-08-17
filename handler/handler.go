@@ -1187,7 +1187,6 @@ func createReply(text string) string {
 		if len(parts) == 2 {
 
 			name := strings.TrimSpace(parts[0])
-			name = strings.TrimSuffix(name, "さん")
 
 			nickname := strings.TrimSuffix(parts[1], "だよ")
 			nickname = strings.TrimSpace(nickname)
