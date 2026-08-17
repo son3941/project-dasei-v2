@@ -103,5 +103,5 @@ func createCrazyMutter(post string) string {
 		lines = lines[:len(lines)-1]
 	}
 
-	return polishDaseiReply(strings.Join(lines, "\n"))
+	return polishDaseiReply(strings.Join(lines, "\n"), strings.Join(lines, "\n"))
 }

@@ -587,7 +587,7 @@ func searchWikipedia(text string) string {
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
-		log.Printf("Wikipediaリクエスト作成エラー: %v", err)
+		log.Printf("Wikipedia検索リクエスト作成エラー: %v", err)
 		return ""
 	}
 
@@ -595,33 +595,74 @@ func searchWikipedia(text string) string {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("Wikipedia HTTPエラー: %v", err)
+		log.Printf("Wikipedia検索HTTPエラー: %v", err)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Wikipedia HTTPステータス: %d", resp.StatusCode)
 		return ""
 	}
-	var data struct {
+	var searchData struct {
 		Query struct {
 			Search []struct {
-				Title   string `json:"title"`
-				Snippet string `json:"snippet"`
+				Title string `json:"title"`
 			} `json:"search"`
 		} `json:"query"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&searchData); err != nil {
 		return ""
 	}
 
-	if len(data.Query.Search) == 0 {
+	if len(searchData.Query.Search) == 0 {
 		return ""
 	}
 
-	return data.Query.Search[0].Title
+	title := searchData.Query.Search[0].Title
+
+	extractURL := "https://ja.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&exchars=500&redirects=1&titles=" +
+		url.QueryEscape(title) +
+		"&format=json&utf8=1"
+
+	req, err = http.NewRequest("GET", extractURL, nil)
+	if err != nil {
+		return ""
+	}
+
+	req.Header.Set("User-Agent", "Dasei/1.0 (mixi2 community plugin)")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var extractData struct {
+		Query struct {
+			Pages map[string]struct {
+				Title   string `json:"title"`
+				Extract string `json:"extract"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&extractData); err != nil {
+		return ""
+	}
+
+	for _, page := range extractData.Query.Pages {
+		if page.Extract == "" {
+			return ""
+		}
+
+		return page.Title + "：" + page.Extract
+	}
+
+	return ""
 }
 func isKaomojiPost(text string) bool {
 	text = strings.TrimSpace(text)
@@ -1165,29 +1206,38 @@ func generateReplyWithWebCheck(text string) string {
 func CreateReplyWithWebCheck(text string) string {
 	return generateReplyWithWebCheck(text)
 }
-func polishDaseiReply(text string) string {
-	text = strings.TrimSpace(text)
+func polishDaseiReply(originalText string, reply string) string {
+	originalText = strings.TrimSpace(originalText)
+	reply = strings.TrimSpace(reply)
 
-	if text == "" {
+	if reply == "" {
 		return ""
 	}
 
-	// Wikipediaで返信内容を確認
-	webResult := searchWikipedia(text)
+	// 元の投稿と、だせいが生成した返信を記録
+	slog.Info("Wikipedia filter input",
+		slog.String("original", originalText),
+		slog.String("reply", reply),
+	)
+
+	// Wikipedia検索
+	webResult := searchWikipedia(originalText)
 
 	if webResult != "" {
 		slog.Info("Wikipedia filter",
-			slog.String("reply", text),
+			slog.String("original", originalText),
+			slog.String("reply", reply),
 			slog.String("result", webResult),
 		)
 	} else {
 		slog.Info("Wikipedia filter: no result",
-			slog.String("reply", text),
+			slog.String("original", originalText),
+			slog.String("reply", reply),
 		)
 	}
 
-	// 現段階では文章そのものは変更しない
-	return text
+	// 現段階では返信そのものは変更しない
+	return reply
 }
 func createReply(text string) string {
 
@@ -1311,7 +1361,7 @@ func createReply(text string) string {
 	reply = generateNaturalReply(text)
 
 	if reply != "" {
-		return polishDaseiReply(reply)
+		return polishDaseiReply(text, reply)
 	}
 
 	return "そうなんだね"
@@ -1658,7 +1708,7 @@ func createChuunibyou() string {
 		result = string([]rune(result)[:149])
 	}
 
-	result = polishDaseiReply(result)
+	result = polishDaseiReply(result, result)
 
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])
