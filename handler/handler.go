@@ -1290,7 +1290,7 @@ func createReply(text string) string {
 	reply = generateNaturalReply(text)
 
 	if reply != "" {
-		return reply
+		return polishDaseiReply(reply)
 	}
 
 	return "そうなんだね"
