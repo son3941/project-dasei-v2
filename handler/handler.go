@@ -1196,7 +1196,6 @@ func generateReplyWithWebCheck(text string) string {
 			slog.String("result", webResult),
 		)
 
-		reply = reply + "（" + webResult + "）"
 	}
 
 	return reply
@@ -1214,29 +1213,270 @@ func polishDaseiReply(originalText string, reply string) string {
 		return ""
 	}
 
-	// 元の投稿と、だせいが生成した返信を記録
+	// 校正用の参照データ
+	webResult := searchWikipedia(originalText)
+
 	slog.Info("Wikipedia filter input",
 		slog.String("original", originalText),
 		slog.String("reply", reply),
+		slog.String("reference", webResult),
 	)
 
-	// Wikipedia検索
-	webResult := searchWikipedia(originalText)
+	// Wikipedia等の参照データから、
+	// 返信に使える言葉を抽出する
+	referenceWords := extractReferenceWords(webResult)
+	referenceSentences := extractReferenceSentences(webResult)
 
-	if webResult != "" {
-		slog.Info("Wikipedia filter",
-			slog.String("original", originalText),
-			slog.String("reply", reply),
-			slog.String("result", webResult),
-		)
-	} else {
-		slog.Info("Wikipedia filter: no result",
-			slog.String("original", originalText),
-			slog.String("reply", reply),
-		)
+	reply = polishWithReference(reply, referenceWords, referenceSentences)
+	reply = checkReferenceSentences(reply, referenceSentences)
+
+	return normalizeDaseiReply(reply)
+}
+func checkReferenceSentences(reply string, referenceSentences []string) string {
+	if reply == "" || len(referenceSentences) == 0 {
+		return reply
 	}
 
-	// 現段階では返信そのものは変更しない
+	replyTokens := tokenizeForPolish(reply)
+
+	if len(replyTokens) == 0 {
+		return reply
+	}
+
+	for _, sentence := range referenceSentences {
+		referenceTokens := tokenizeForPolish(sentence)
+
+		if len(referenceTokens) == 0 {
+			continue
+		}
+
+		matched := countCommonWords(replyTokens, referenceTokens)
+
+		if matched > 0 {
+			slog.Info("Wikipedia filter sentence matched",
+				slog.String("sentence", sentence),
+				slog.Int("matched", matched),
+			)
+		}
+	}
+
+	return reply
+}
+func tokenizeForPolish(text string) []string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return nil
+	}
+
+	tokens := wakati.Tokenize(text)
+
+	var words []string
+
+	for _, token := range tokens {
+		surface := strings.TrimSpace(token.Surface)
+
+		if surface == "" {
+			continue
+		}
+
+		// 記号は除外
+		if isPolishSymbol(surface) {
+			continue
+		}
+
+		words = append(words, surface)
+	}
+
+	return words
+}
+func countCommonWords(replyTokens []string, referenceTokens []string) int {
+	if len(replyTokens) == 0 || len(referenceTokens) == 0 {
+		return 0
+	}
+
+	referenceSet := make(map[string]bool)
+
+	for _, word := range referenceTokens {
+		referenceSet[word] = true
+	}
+
+	matched := 0
+	already := make(map[string]bool)
+
+	for _, word := range replyTokens {
+		if already[word] {
+			continue
+		}
+
+		if referenceSet[word] {
+			matched++
+			already[word] = true
+
+			slog.Info("Wikipedia filter word matched",
+				slog.String("word", word),
+			)
+		}
+	}
+
+	return matched
+}
+func isPolishSymbol(text string) bool {
+	if text == "" {
+		return true
+	}
+
+	for _, r := range text {
+		switch r {
+		case '。', '、', '！', '？',
+			'「', '」', '『', '』',
+			'（', '）', '(', ')',
+			'・', '…', 'ー',
+			',', '.', '!', '?':
+			continue
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+func extractReferenceWords(reference string) []string {
+	reference = strings.TrimSpace(reference)
+
+	if reference == "" {
+		return nil
+	}
+
+	// Wikipediaのタイトル部分と本文を分離
+	parts := strings.SplitN(reference, "：", 2)
+
+	var text string
+	if len(parts) == 2 {
+		text = parts[0] + " " + parts[1]
+	} else {
+		text = reference
+	}
+
+	// Kagomeで日本語を単語単位に分解
+	tokens := wakati.Tokenize(text)
+
+	var words []string
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" {
+			continue
+		}
+
+		// 記号は除外
+		if isPolishSymbol(word) {
+			continue
+		}
+
+		// 1文字だけの語は除外
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		words = append(words, word)
+	}
+
+	return words
+}
+func extractReferenceSentences(reference string) []string {
+	reference = strings.TrimSpace(reference)
+
+	if reference == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(reference, "：", 2)
+
+	var text string
+	if len(parts) == 2 {
+		text = parts[1]
+	} else {
+		text = reference
+	}
+
+	// Wikipedia本文を「実際の文章」の単位で分ける
+	sentences := strings.FieldsFunc(text, func(r rune) bool {
+		switch r {
+		case '。', '！', '？':
+			return true
+		default:
+			return false
+		}
+	})
+
+	var result []string
+
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+
+		if len([]rune(sentence)) < 4 {
+			continue
+		}
+
+		result = append(result, sentence)
+	}
+
+	return result
+}
+func polishWithReference(reply string, referenceWords []string, referenceSentences []string) string {
+	if reply == "" {
+		return reply
+	}
+
+	// 参照データに含まれる語を確認する
+	for _, word := range referenceWords {
+		if strings.Contains(reply, word) {
+			slog.Info("Wikipedia filter matched",
+				slog.String("word", word),
+			)
+		}
+	}
+
+	// 返信に含まれる語が、参照文章の中で
+	// どのように使われているかを候補として記録する
+	for _, sentence := range referenceSentences {
+		for _, word := range referenceWords {
+			if strings.Contains(reply, word) &&
+				strings.Contains(sentence, word) {
+
+				slog.Info("Wikipedia sentence matched",
+					slog.String("word", word),
+					slog.String("sentence", sentence),
+				)
+			}
+		}
+	}
+
+	// 現段階では文章そのものは変更しない
+	return reply
+}
+func normalizeDaseiReply(reply string) string {
+	reply = strings.TrimSpace(reply)
+
+	// 連続する空白を整理
+	reply = strings.Join(strings.Fields(reply), " ")
+
+	// 同じ語句が連続している場合を整理
+	for {
+		old := reply
+
+		reply = strings.ReplaceAll(reply, "。。", "。")
+		reply = strings.ReplaceAll(reply, "！！", "！")
+		reply = strings.ReplaceAll(reply, "？？", "？")
+		reply = strings.ReplaceAll(reply, "、、", "、")
+
+		if reply == old {
+			break
+		}
+	}
+
 	return reply
 }
 func createReply(text string) string {
