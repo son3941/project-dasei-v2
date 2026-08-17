@@ -1370,6 +1370,10 @@ func extractReferenceWords(reference string) []string {
 			continue
 		}
 
+		if word == "BOS" || word == "EOS" {
+			continue
+		}
+
 		// 記号は除外
 		if isPolishSymbol(word) {
 			continue
