@@ -1166,6 +1166,27 @@ func CreateReplyWithWebCheck(text string) string {
 	return generateReplyWithWebCheck(text)
 }
 func polishDaseiReply(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	// Wikipediaで返信内容を確認
+	webResult := searchWikipedia(text)
+
+	if webResult != "" {
+		slog.Info("Wikipedia filter",
+			slog.String("reply", text),
+			slog.String("result", webResult),
+		)
+	} else {
+		slog.Info("Wikipedia filter: no result",
+			slog.String("reply", text),
+		)
+	}
+
+	// 現段階では文章そのものは変更しない
 	return text
 }
 func createReply(text string) string {
