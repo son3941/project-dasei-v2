@@ -1309,6 +1309,11 @@ func countCommonWords(replyTokens []string, referenceTokens []string) int {
 			continue
 		}
 
+		// BOS / EOS は照合対象外
+		if word == "BOS" || word == "EOS" {
+			continue
+		}
+
 		if referenceSet[word] {
 			matched++
 			already[word] = true
