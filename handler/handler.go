@@ -683,7 +683,7 @@ func searchWeb(text string) string {
 		return ""
 	}
 
-	req.Header.Set("User-Agent", "Dasei/1.0 (mixi2 community plugin)")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -699,51 +699,50 @@ func searchWeb(text string) string {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("Web検索本文読み込みエラー: %v", err)
 		return ""
 	}
 
 	htmlText := string(body)
 
 	titleRe := regexp.MustCompile(
-		`<a[^>]*class="result__a"[^>]*>(.*?)</a>`,
+		`<li class="b_algo"[^>]*>.*?<h2><a[^>]*>(.*?)</a>`,
 	)
 
 	snippetRe := regexp.MustCompile(
-		`<a[^>]*class="result__snippet"[^>]*>(.*?)</a>`,
+		`<li class="b_algo"[^>]*>.*?<p[^>]*>(.*?)</p>`,
 	)
-
 	titles := titleRe.FindAllStringSubmatch(htmlText, 5)
 	snippets := snippetRe.FindAllStringSubmatch(htmlText, 5)
+	stripHTML := func(s string) string {
+		s = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(s, "")
+		s = html.UnescapeString(s)
+		return strings.TrimSpace(s)
+	}
 
 	var results []string
 
-	for i := 0; i < len(titles) && i < len(snippets); i++ {
-		title := html.UnescapeString(
-			strings.TrimSpace(
-				regexp.MustCompile(`<[^>]+>`).
-					ReplaceAllString(titles[i][1], ""),
-			),
-		)
+	for i := 0; i < len(titles); i++ {
+		title := stripHTML(titles[i][1])
+		snippet := ""
 
-		snippet := html.UnescapeString(
-			strings.TrimSpace(
-				regexp.MustCompile(`<[^>]+>`).
-					ReplaceAllString(snippets[i][1], ""),
-			),
-		)
-
-		if title == "" && snippet == "" {
-			continue
+		if i < len(snippets) {
+			snippet = stripHTML(snippets[i][1])
 		}
 
-		results = append(results, title+"："+snippet)
+		if title != "" {
+			results = append(results, title+"："+snippet)
+		}
 	}
 
 	if len(results) == 0 {
 		return ""
 	}
 
-	return strings.Join(results, "\n")
+	result := strings.Join(results, "\n")
+	log.Printf("Web検索成功 query=%s results=%d", text, len(results))
+
+	return result
 }
 func getNetworkReference(text string) string {
 	text = strings.TrimSpace(text)
