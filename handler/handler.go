@@ -3,14 +3,11 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"html"
-	"io"
 	"log"
 	"log/slog"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -674,8 +671,9 @@ func searchWeb(text string) string {
 		return ""
 	}
 
-	searchURL := "https://html.duckduckgo.com/html/?q=" +
-		url.QueryEscape(text)
+	searchURL := "https://api.duckduckgo.com/?q=" +
+		url.QueryEscape(text) +
+		"&format=json&no_html=1&skip_disambig=1"
 
 	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
@@ -697,54 +695,62 @@ func searchWeb(text string) string {
 		return ""
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ""
+	var data struct {
+		Heading       string `json:"Heading"`
+		AbstractText  string `json:"AbstractText"`
+		Answer        string `json:"Answer"`
+		Definition    string `json:"Definition"`
+		RelatedTopics []struct {
+			Text string `json:"Text"`
+		} `json:"RelatedTopics"`
 	}
 
-	htmlText := string(body)
-
-	// 検索結果のタイトルと説明を取得
-	titleRe := regexp.MustCompile(
-		`<a[^>]*class="result__a"[^>]*>(.*?)</a>`,
-	)
-
-	snippetRe := regexp.MustCompile(
-		`<a[^>]*class="result__snippet"[^>]*>(.*?)</a>`,
-	)
-
-	titles := titleRe.FindAllStringSubmatch(htmlText, 5)
-	snippets := snippetRe.FindAllStringSubmatch(htmlText, 5)
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("Web検索JSON解析エラー: %v", err)
+		return ""
+	}
 
 	var results []string
 
-	for i := 0; i < len(titles) && i < len(snippets); i++ {
-		title := html.UnescapeString(
-			strings.TrimSpace(
-				regexp.MustCompile(`<[^>]+>`).
-					ReplaceAllString(titles[i][1], ""),
-			),
-		)
+	if data.Heading != "" {
+		results = append(results, data.Heading)
+	}
 
-		snippet := html.UnescapeString(
-			strings.TrimSpace(
-				regexp.MustCompile(`<[^>]+>`).
-					ReplaceAllString(snippets[i][1], ""),
-			),
-		)
+	if data.AbstractText != "" {
+		results = append(results, data.AbstractText)
+	}
 
-		if title == "" && snippet == "" {
-			continue
+	if data.Answer != "" {
+		results = append(results, data.Answer)
+	}
+
+	if data.Definition != "" {
+		results = append(results, data.Definition)
+	}
+
+	for _, topic := range data.RelatedTopics {
+		if topic.Text != "" {
+			results = append(results, topic.Text)
 		}
 
-		results = append(results, title+"："+snippet)
+		if len(results) >= 5 {
+			break
+		}
 	}
 
 	if len(results) == 0 {
+		log.Printf("Web検索結果なし: %s", text)
 		return ""
 	}
 
-	return strings.Join(results, "\n")
+	result := strings.Join(results, "\n")
+
+	slog.Info("Web search result",
+		slog.String("query", text),
+		slog.String("result", result),
+	)
+
+	return result
 }
 func getNetworkReference(text string) string {
 	text = strings.TrimSpace(text)
