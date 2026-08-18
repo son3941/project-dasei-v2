@@ -3,11 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"html"
+	"io"
 	"log"
 	"log/slog"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -664,6 +667,85 @@ func searchWikipedia(text string) string {
 
 	return ""
 }
+func searchWeb(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	searchURL := "https://html.duckduckgo.com/html/?q=" +
+		url.QueryEscape(text)
+
+	req, err := http.NewRequest("GET", searchURL, nil)
+	if err != nil {
+		log.Printf("Web検索リクエスト作成エラー: %v", err)
+		return ""
+	}
+
+	req.Header.Set("User-Agent", "Dasei/1.0 (mixi2 community plugin)")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("Web検索HTTPエラー: %v", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Web検索HTTPステータス: %d", resp.StatusCode)
+		return ""
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	htmlText := string(body)
+
+	// 検索結果のタイトルと説明を取得
+	titleRe := regexp.MustCompile(
+		`<a[^>]*class="result__a"[^>]*>(.*?)</a>`,
+	)
+
+	snippetRe := regexp.MustCompile(
+		`<a[^>]*class="result__snippet"[^>]*>(.*?)</a>`,
+	)
+
+	titles := titleRe.FindAllStringSubmatch(htmlText, 5)
+	snippets := snippetRe.FindAllStringSubmatch(htmlText, 5)
+
+	var results []string
+
+	for i := 0; i < len(titles) && i < len(snippets); i++ {
+		title := html.UnescapeString(
+			strings.TrimSpace(
+				regexp.MustCompile(`<[^>]+>`).
+					ReplaceAllString(titles[i][1], ""),
+			),
+		)
+
+		snippet := html.UnescapeString(
+			strings.TrimSpace(
+				regexp.MustCompile(`<[^>]+>`).
+					ReplaceAllString(snippets[i][1], ""),
+			),
+		)
+
+		if title == "" && snippet == "" {
+			continue
+		}
+
+		results = append(results, title+"："+snippet)
+	}
+
+	if len(results) == 0 {
+		return ""
+	}
+
+	return strings.Join(results, "\n")
+}
 func getNetworkReference(text string) string {
 	text = strings.TrimSpace(text)
 
@@ -1265,28 +1347,18 @@ func polishDaseiReply(originalText string, reply string) string {
 		return ""
 	}
 
-	// 校正用の参照データ
 	wikipediaResult := searchWikipedia(originalText)
-	networkResult := getNetworkReference(originalText)
+	networkResult := searchWeb(originalText)
 
-	webResult := wikipediaResult
+	webResult := wikipediaResult + "\n" + networkResult
 
-	if networkResult != "" {
-		if webResult != "" {
-			webResult += " " + networkResult
-		} else {
-			webResult = networkResult
-		}
-	}
-
-	slog.Info("Reference filter input",
+	slog.Info("Reference search",
 		slog.String("original", originalText),
 		slog.String("reply", reply),
-		slog.String("reference", webResult),
+		slog.String("wikipedia", wikipediaResult),
+		slog.String("network", networkResult),
 	)
 
-	// Wikipedia等の参照データから、
-	// 返信に使える言葉を抽出する
 	referenceWords := extractReferenceWords(webResult)
 	referenceSentences := extractReferenceSentences(webResult)
 
