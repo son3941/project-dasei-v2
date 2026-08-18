@@ -1579,10 +1579,17 @@ func polishWithReference(reply string, referenceWords []string, referenceSentenc
 		return reply
 	}
 
+	// 検索結果から、元の返信と最も関連性の高い文章を探す
 	bestSentence := ""
 	bestScore := 0
 
 	for _, sentence := range referenceSentences {
+		sentence = strings.TrimSpace(sentence)
+
+		if sentence == "" {
+			continue
+		}
+
 		sentenceTokens := tokenizeForPolish(sentence)
 
 		if len(sentenceTokens) == 0 {
@@ -1597,18 +1604,24 @@ func polishWithReference(reply string, referenceWords []string, referenceSentenc
 		}
 	}
 
-	if bestSentence != "" {
-		slog.Info("Wikipedia filter best reference",
+	// 関連する検索結果がなければ、元の返信をそのまま返す
+	if bestSentence == "" || bestScore == 0 {
+		slog.Info("Wikipedia polish skipped",
 			slog.String("reply", reply),
 			slog.Int("score", bestScore),
-			slog.String("sentence", bestSentence),
 		)
-	} else {
-		slog.Info("Wikipedia filter no relevant reference",
-			slog.String("reply", reply),
-		)
+		return reply
 	}
 
+	// 検索結果との関連性を記録
+	slog.Info("Wikipedia polish reference selected",
+		slog.String("reply", reply),
+		slog.Int("score", bestScore),
+		slog.String("reference", bestSentence),
+	)
+
+	// 現段階では元の返信を壊さない。
+	// 検索結果が関連していることだけ確認して返す。
 	return reply
 }
 func normalizeDaseiReply(reply string) string {
