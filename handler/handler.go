@@ -664,6 +664,58 @@ func searchWikipedia(text string) string {
 
 	return ""
 }
+func getNetworkReference(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	refURL := "https://api.duckduckgo.com/?q=" +
+		url.QueryEscape(text) +
+		"&format=json&no_html=1&skip_disambig=1"
+
+	req, err := http.NewRequest("GET", refURL, nil)
+	if err != nil {
+		return ""
+	}
+
+	req.Header.Set("User-Agent", "Dasei/1.0 (mixi2 community plugin)")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var data struct {
+		AbstractText string `json:"AbstractText"`
+		Answer       string `json:"Answer"`
+		Definition   string `json:"Definition"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return ""
+	}
+
+	if data.AbstractText != "" {
+		return data.AbstractText
+	}
+
+	if data.Definition != "" {
+		return data.Definition
+	}
+
+	if data.Answer != "" {
+		return data.Answer
+	}
+
+	return ""
+}
 func isKaomojiPost(text string) bool {
 	text = strings.TrimSpace(text)
 
@@ -1214,9 +1266,20 @@ func polishDaseiReply(originalText string, reply string) string {
 	}
 
 	// 校正用の参照データ
-	webResult := searchWikipedia(originalText)
+	wikipediaResult := searchWikipedia(originalText)
+	networkResult := getNetworkReference(originalText)
 
-	slog.Info("Wikipedia filter input",
+	webResult := wikipediaResult
+
+	if networkResult != "" {
+		if webResult != "" {
+			webResult += " " + networkResult
+		} else {
+			webResult = networkResult
+		}
+	}
+
+	slog.Info("Reference filter input",
 		slog.String("original", originalText),
 		slog.String("reply", reply),
 		slog.String("reference", webResult),
@@ -1439,31 +1502,42 @@ func polishWithReference(reply string, referenceWords []string, referenceSentenc
 		return reply
 	}
 
-	// 参照データに含まれる語を確認する
-	for _, word := range referenceWords {
-		if strings.Contains(reply, word) {
-			slog.Info("Wikipedia filter matched",
-				slog.String("word", word),
-			)
-		}
+	replyTokens := tokenizeForPolish(reply)
+
+	if len(replyTokens) == 0 {
+		return reply
 	}
 
-	// 返信に含まれる語が、参照文章の中で
-	// どのように使われているかを候補として記録する
+	bestSentence := ""
+	bestScore := 0
+
 	for _, sentence := range referenceSentences {
-		for _, word := range referenceWords {
-			if strings.Contains(reply, word) &&
-				strings.Contains(sentence, word) {
+		sentenceTokens := tokenizeForPolish(sentence)
 
-				slog.Info("Wikipedia sentence matched",
-					slog.String("word", word),
-					slog.String("sentence", sentence),
-				)
-			}
+		if len(sentenceTokens) == 0 {
+			continue
+		}
+
+		score := countCommonWords(replyTokens, sentenceTokens)
+
+		if score > bestScore {
+			bestScore = score
+			bestSentence = sentence
 		}
 	}
 
-	// 現段階では文章そのものは変更しない
+	if bestSentence != "" {
+		slog.Info("Wikipedia filter best reference",
+			slog.String("reply", reply),
+			slog.Int("score", bestScore),
+			slog.String("sentence", bestSentence),
+		)
+	} else {
+		slog.Info("Wikipedia filter no relevant reference",
+			slog.String("reply", reply),
+		)
+	}
+
 	return reply
 }
 func normalizeDaseiReply(reply string) string {
