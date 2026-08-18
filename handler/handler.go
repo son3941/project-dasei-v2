@@ -704,7 +704,7 @@ func searchWeb(text string) string {
 	}
 
 	htmlText := string(body)
-
+	log.Printf("Bing検索HTTP成功 status=%d bytes=%d query=%s", resp.StatusCode, len(body), text)
 	titleRe := regexp.MustCompile(
 		`<li class="b_algo"[^>]*>.*?<h2><a[^>]*>(.*?)</a>`,
 	)
@@ -736,6 +736,7 @@ func searchWeb(text string) string {
 	}
 
 	if len(results) == 0 {
+		log.Printf("Web検索結果0件 query=%s", text)
 		return ""
 	}
 
