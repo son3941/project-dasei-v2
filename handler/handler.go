@@ -1626,6 +1626,7 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		slog.Int("count", len(usefulWords)),
 		slog.Any("words", usefulWords),
 	)
+	reply = applyReferenceWords(reply, usefulWords)
 	enrichedReply := enrichDaseiReply(reply, "", usefulWords)
 
 	if enrichedReply != reply {
@@ -1690,6 +1691,42 @@ func extractUsefulReferenceWords(referenceWords []string) []string {
 	}
 
 	return result
+}
+func applyReferenceWords(reply string, usefulWords []string) string {
+	if reply == "" || len(usefulWords) == 0 {
+		return reply
+	}
+
+	replyTokens := tokenizeForPolish(reply)
+
+	if len(replyTokens) == 0 {
+		return reply
+	}
+
+	matched := 0
+
+	for _, word := range usefulWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
+			continue
+		}
+
+		for _, token := range replyTokens {
+			if token == word {
+				matched++
+				break
+			}
+		}
+	}
+
+	slog.Info("Wikipedia reference words applied",
+		slog.String("reply", reply),
+		slog.Int("matched", matched),
+		slog.Int("usefulWords", len(usefulWords)),
+	)
+
+	return reply
 }
 func enrichDaseiReply(reply string, originalText string, referenceWords []string) string {
 	reply = strings.TrimSpace(reply)
