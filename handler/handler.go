@@ -1361,7 +1361,7 @@ func polishDaseiReply(originalText string, reply string) string {
 	referenceWords := extractReferenceWords(webResult)
 	referenceSentences := extractReferenceSentences(webResult)
 
-	reply = polishWithReference(reply, referenceWords, referenceSentences)
+	reply = polishWithReference(reply, originalText, referenceWords, referenceSentences)
 	reply = checkReferenceSentences(reply, referenceSentences)
 
 	return normalizeDaseiReply(reply)
@@ -1568,7 +1568,7 @@ func extractReferenceSentences(reference string) []string {
 
 	return result
 }
-func polishWithReference(reply string, referenceWords []string, referenceSentences []string) string {
+func polishWithReference(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
 	if reply == "" {
 		return reply
 	}
@@ -1619,9 +1619,145 @@ func polishWithReference(reply string, referenceWords []string, referenceSentenc
 		slog.Int("score", bestScore),
 		slog.String("reference", bestSentence),
 	)
+	usefulWords := extractUsefulReferenceWords(referenceWords)
 
+	slog.Info("Wikipedia useful reference words",
+		slog.String("reply", reply),
+		slog.Int("count", len(usefulWords)),
+		slog.Any("words", usefulWords),
+	)
+	enrichedReply := enrichDaseiReply(reply, "", usefulWords)
+
+	if enrichedReply != reply {
+		slog.Info("Wikipedia reply enriched",
+			slog.String("before", reply),
+			slog.String("after", enrichedReply),
+		)
+
+		reply = enrichedReply
+	}
 	// 現段階では元の返信を壊さない。
 	// 検索結果が関連していることだけ確認して返す。
+	return reply
+}
+func extractUsefulReferenceWords(referenceWords []string) []string {
+	if len(referenceWords) == 0 {
+		return nil
+	}
+
+	var result []string
+
+	for _, word := range referenceWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
+			continue
+		}
+
+		// 短すぎる語は除外
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		// 一般的すぎる語は除外
+		switch word {
+		case "今日", "現在", "地域", "場所",
+			"情報", "ニュース", "記事", "内容",
+			"人物", "名称", "東京都", "日本":
+			continue
+		}
+
+		// 重複除去
+		duplicate := false
+
+		for _, existing := range result {
+			if existing == word {
+				duplicate = true
+				break
+			}
+		}
+
+		if duplicate {
+			continue
+		}
+
+		result = append(result, word)
+
+		// 使う候補は最大5個
+		if len(result) >= 5 {
+			break
+		}
+	}
+
+	return result
+}
+func enrichDaseiReply(reply string, originalText string, referenceWords []string) string {
+	reply = strings.TrimSpace(reply)
+	originalText = strings.TrimSpace(originalText)
+
+	if reply == "" || originalText == "" || len(referenceWords) == 0 {
+		return reply
+	}
+
+	// 汎用的な返信だけを具体化対象にする
+	isGenericReply := false
+
+	switch reply {
+	case "どうなんやろ",
+		"気になるところだね",
+		"そうなんだね",
+		"なるほど",
+		"そういうことか",
+		"いいね":
+		isGenericReply = true
+	}
+
+	if !isGenericReply {
+		return reply
+	}
+
+	// 元の投稿に含まれている単語を優先する
+	for _, word := range referenceWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
+			continue
+		}
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		if !strings.Contains(originalText, word) {
+			continue
+		}
+
+		// すでに返信に含まれている場合は追加しない
+		if strings.Contains(reply, word) {
+			continue
+		}
+
+		switch reply {
+		case "どうなんやろ":
+			return word + "の話なんやろね"
+
+		case "気になるところだね":
+			return word + "の話、気になるね"
+
+		case "そうなんだね":
+			return word + "なんやね"
+
+		case "なるほど":
+			return word + "なんやね"
+
+		case "そういうことか":
+			return word + "の話なんやね"
+
+		case "いいね":
+			return word + "なんやね、いいね"
+		}
+	}
+
 	return reply
 }
 func normalizeDaseiReply(reply string) string {
