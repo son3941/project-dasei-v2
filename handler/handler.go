@@ -1624,6 +1624,111 @@ func extractReferenceSentences(reference string) []string {
 
 	return result
 }
+func expandShortDaseiReply(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
+	reply = strings.TrimSpace(reply)
+	originalText = strings.TrimSpace(originalText)
+
+	if reply == "" {
+		return reply
+	}
+
+	// 50文字以上なら、そのまま返す
+	if len([]rune(reply)) >= 50 {
+		return reply
+	}
+
+	// 返信を自然に補強するための材料を探す
+	contextWord := ""
+
+	for _, word := range referenceWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" || len([]rune(word)) < 2 {
+			continue
+		}
+
+		if strings.Contains(originalText, word) {
+			contextWord = word
+			break
+		}
+	}
+
+	// 検索結果から使えそうな短い文章を探す
+	contextSentence := ""
+
+	for _, sentence := range referenceSentences {
+		sentence = strings.TrimSpace(sentence)
+
+		if sentence == "" {
+			continue
+		}
+
+		runes := []rune(sentence)
+
+		if len(runes) > 60 {
+			sentence = string(runes[:60])
+		}
+
+		contextSentence = sentence
+		break
+	}
+	// 具体的な単語が取れている場合
+	if contextWord != "" {
+		addition := contextWord + "の話やね。投稿を見てると、こういうところが気になるところやね。だせいももう少し詳しく知りたいかな。"
+
+		remaining := 149 - len([]rune(reply))
+		if remaining > 0 {
+			addRunes := []rune(addition)
+
+			if len(addRunes) > remaining {
+				addition = string(addRunes[:remaining])
+			}
+
+			reply += addition
+		}
+	}
+
+	// まだ50文字未満なら、検索結果の文章を利用
+	if len([]rune(reply)) < 50 && contextSentence != "" {
+		addition := "調べてみると、" + contextSentence + "という話もあるみたい。投稿の内容と合わせて考えると、ちょっと気になるところやね。"
+
+		remaining := 149 - len([]rune(reply))
+		if remaining > 0 {
+			addRunes := []rune(addition)
+
+			if len(addRunes) > remaining {
+				addition = string(addRunes[:remaining])
+			}
+
+			reply += addition
+		}
+	}
+
+	// 検索結果が使えない場合でも、自然な補足を行う
+	if len([]rune(reply)) < 50 {
+		addition := " 投稿の内容を見てると、そういうことについて考えてみるのも面白そうやね。だせいも気になるところかな。"
+
+		remaining := 149 - len([]rune(reply))
+		if remaining > 0 {
+			addRunes := []rune(addition)
+
+			if len(addRunes) > remaining {
+				addition = string(addRunes[:remaining])
+			}
+
+			reply += addition
+		}
+	}
+
+	// 最終的に149文字を超えないようにする
+	runes := []rune(reply)
+
+	if len(runes) > 149 {
+		reply = string(runes[:149])
+	}
+
+	return strings.TrimSpace(reply)
+}
 func polishWithReference(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
 	if reply == "" {
 		return reply
@@ -1652,7 +1757,7 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 			continue
 		}
 
-		score := countCommonWords(originalTokens, sentenceTokens)
+		score := countRelevantCommonWords(originalTokens, sentenceTokens)
 
 		if score > bestScore {
 			bestScore = score
@@ -1698,9 +1803,79 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 
 		reply = enrichedReply
 	}
-	// 現段階では元の返信を壊さない。
-	// 検索結果を使って必要に応じて返信を具体化する。
-	return reply
+	// 短文の場合は、元の投稿と検索結果を参考にして
+	// 50〜149文字程度の自然な返信へ膨らませる。
+	//
+	// 50文字以上の返信は変更しない。
+	// 149文字を超えている返信も無理に削らない。
+	reply = ensureDaseiReplyLength(
+		reply,
+		originalText,
+		usefulWords,
+		referenceSentences,
+	)
+
+	// 最後に空白・句読点などを整理する。
+	return normalizeDaseiReply(reply)
+}
+
+func countRelevantCommonWords(a []string, b []string) int {
+	stopWords := map[string]bool{
+		"は":  true,
+		"が":  true,
+		"を":  true,
+		"に":  true,
+		"へ":  true,
+		"と":  true,
+		"の":  true,
+		"で":  true,
+		"も":  true,
+		"や":  true,
+		"から": true,
+		"まで": true,
+		"だけ": true,
+		"など": true,
+		"こと": true,
+		"もの": true,
+		"これ": true,
+		"それ": true,
+		"あれ": true,
+		"この": true,
+		"その": true,
+		"あの": true,
+		"何":  true,
+		"日":  true,
+		"今日": true,
+	}
+
+	count := 0
+
+	for _, wordA := range a {
+		wordA = strings.TrimSpace(wordA)
+
+		if wordA == "" || stopWords[wordA] {
+			continue
+		}
+
+		if len([]rune(wordA)) < 2 {
+			continue
+		}
+
+		for _, wordB := range b {
+			wordB = strings.TrimSpace(wordB)
+
+			if wordB == "" || stopWords[wordB] {
+				continue
+			}
+
+			if wordA == wordB {
+				count++
+				break
+			}
+		}
+	}
+
+	return count
 }
 func extractUsefulReferenceWords(referenceWords []string) []string {
 	if len(referenceWords) == 0 {
@@ -1901,6 +2076,83 @@ func normalizeDaseiReply(reply string) string {
 
 	return reply
 }
+func ensureDaseiReplyLength(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
+	reply = strings.TrimSpace(reply)
+	originalText = strings.TrimSpace(originalText)
+
+	if reply == "" {
+		return reply
+	}
+
+	// 短文でなければ、そのまま返す
+	runeCount := len([]rune(reply))
+
+	if runeCount >= 50 {
+		return reply
+	}
+
+	// 元の投稿に含まれる具体的な単語を探す
+	usefulWord := ""
+
+	for _, word := range referenceWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
+			continue
+		}
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		if strings.Contains(originalText, word) {
+			usefulWord = word
+			break
+		}
+	}
+
+	// 返信を自然に膨らませる
+	candidates := []string{}
+
+	if usefulWord != "" {
+		candidates = append(candidates,
+			reply+"。"+usefulWord+"の話として見ると、ちょっと気になるところだね。",
+			reply+"。"+usefulWord+"については、そういう見方もありそうやね。だせいもちょっと気になる。",
+			reply+"。"+usefulWord+"のことを考えると、もう少し詳しく見てみたいところやね。",
+		)
+	}
+
+	if originalText != "" {
+		candidates = append(candidates,
+			reply+"。元の話を見る限り、もう少し詳しいところまで知りたくなる内容やね。",
+			reply+"。この話だけではまだ何とも言えんけど、ちょっと気になるところではあるね。",
+		)
+	}
+
+	if len(candidates) == 0 {
+		return reply
+	}
+
+	// 50〜149文字に収まる候補を優先
+	for _, candidate := range candidates {
+		candidate = normalizeDaseiReply(candidate)
+
+		count := len([]rune(candidate))
+
+		if count >= 50 && count <= 149 {
+			slog.Info("Dasei short reply expanded",
+				slog.String("before", reply),
+				slog.String("after", candidate),
+				slog.Int("length", count),
+			)
+
+			return candidate
+		}
+	}
+
+	return reply
+}
+
 func createReply(text string) string {
 
 	// 名前を呼ばれたら必ず返信
