@@ -1605,7 +1605,7 @@ func polishWithReference(reply string, referenceWords []string, referenceSentenc
 	}
 
 	// 関連する検索結果がなければ、元の返信をそのまま返す
-	if bestSentence == "" || bestScore == 0 {
+	if bestSentence == "" || bestScore < 2 {
 		slog.Info("Wikipedia polish skipped",
 			slog.String("reply", reply),
 			slog.Int("score", bestScore),
