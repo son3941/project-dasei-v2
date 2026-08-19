@@ -1396,6 +1396,62 @@ func checkReferenceSentences(reply string, referenceSentences []string) string {
 
 	return reply
 }
+func isFactCheckReply(originalText string, reply string) bool {
+	originalText = strings.TrimSpace(originalText)
+	reply = strings.TrimSpace(reply)
+
+	if originalText == "" || reply == "" {
+		return false
+	}
+
+	// 質問形式でなければ校正対象外
+	if !strings.Contains(originalText, "？") &&
+		!strings.Contains(originalText, "?") {
+		return false
+	}
+
+	// 意見・好みなどの質問は校正対象外
+	if strings.Contains(originalText, "好き") ||
+		strings.Contains(originalText, "どっち") ||
+		strings.Contains(originalText, "どちら") ||
+		strings.Contains(originalText, "どう思う") ||
+		strings.Contains(originalText, "どうかな") {
+		return false
+	}
+
+	// 事実確認につながりやすい質問
+	keywords := []string{
+		"いつ",
+		"どこ",
+		"誰",
+		"何",
+		"なに",
+		"何年",
+		"何月",
+		"何日",
+		"何歳",
+		"いくら",
+		"何人",
+		"どんな",
+		"とは",
+		"について",
+		"意味",
+		"由来",
+		"歴史",
+		"場所",
+		"名前",
+		"日付",
+		"ニュース",
+	}
+
+	for _, keyword := range keywords {
+		if strings.Contains(originalText, keyword) {
+			return true
+		}
+	}
+
+	return false
+}
 func tokenizeForPolish(text string) []string {
 	text = strings.TrimSpace(text)
 
@@ -1573,9 +1629,9 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		return reply
 	}
 
-	replyTokens := tokenizeForPolish(reply)
+	originalTokens := tokenizeForPolish(originalText)
 
-	if len(replyTokens) == 0 {
+	if len(originalTokens) == 0 {
 		return reply
 	}
 
@@ -1596,7 +1652,7 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 			continue
 		}
 
-		score := countCommonWords(replyTokens, sentenceTokens)
+		score := countCommonWords(originalTokens, sentenceTokens)
 
 		if score > bestScore {
 			bestScore = score
@@ -1627,7 +1683,12 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		slog.Any("words", usefulWords),
 	)
 	reply = applyReferenceWords(reply, usefulWords)
-	enrichedReply := enrichDaseiReply(reply, "", usefulWords)
+	enrichedReply := enrichDaseiReply(
+		reply,
+		originalText,
+		usefulWords,
+		referenceSentences,
+	)
 
 	if enrichedReply != reply {
 		slog.Info("Wikipedia reply enriched",
@@ -1638,7 +1699,7 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		reply = enrichedReply
 	}
 	// 現段階では元の返信を壊さない。
-	// 検索結果が関連していることだけ確認して返す。
+	// 検索結果を使って必要に応じて返信を具体化する。
 	return reply
 }
 func extractUsefulReferenceWords(referenceWords []string) []string {
@@ -1728,15 +1789,14 @@ func applyReferenceWords(reply string, usefulWords []string) string {
 
 	return reply
 }
-func enrichDaseiReply(reply string, originalText string, referenceWords []string) string {
+func enrichDaseiReply(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
 	reply = strings.TrimSpace(reply)
 	originalText = strings.TrimSpace(originalText)
 
-	if reply == "" || originalText == "" || len(referenceWords) == 0 {
+	if reply == "" || originalText == "" {
 		return reply
 	}
 
-	// 汎用的な返信だけを具体化対象にする
 	isGenericReply := false
 
 	switch reply {
@@ -1753,7 +1813,6 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 		return reply
 	}
 
-	// 元の投稿に含まれている単語を優先する
 	for _, word := range referenceWords {
 		word = strings.TrimSpace(word)
 
@@ -1769,7 +1828,6 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 			continue
 		}
 
-		// すでに返信に含まれている場合は追加しない
 		if strings.Contains(reply, word) {
 			continue
 		}
@@ -1792,6 +1850,30 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 
 		case "いいね":
 			return word + "なんやね、いいね"
+		}
+	}
+	// 検索結果に具体的な文章があり、
+	// 元投稿が事実確認型なら、検索結果を使って具体化する
+	if len(referenceSentences) > 0 && isFactCheckReply(originalText, reply) {
+		sentence := strings.TrimSpace(referenceSentences[0])
+
+		if sentence != "" {
+			// 検索結果そのものを長文で返さない
+			runes := []rune(sentence)
+
+			if len(runes) > 80 {
+				sentence = string(runes[:80]) + "…"
+			}
+
+			switch reply {
+			case "どうなんやろ",
+				"気になるところだね",
+				"そうなんだね",
+				"なるほど",
+				"そういうことか",
+				"いいね":
+				return "調べてみたら、" + sentence + " みたいだね"
+			}
 		}
 	}
 
