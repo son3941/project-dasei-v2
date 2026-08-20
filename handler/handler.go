@@ -2066,35 +2066,6 @@ func normalizeDaseiPostLength(text string) string {
 		return ""
 	}
 
-	// すでに50〜149文字ならそのまま
-	length := len([]rune(text))
-	if length >= 50 && length <= 149 {
-		return text
-	}
-
-	// 50文字未満なら、だせいらしい自然な一言を追加
-	additions := []string{
-		"なんとなくそんな気分だよ",
-		"こういうことってあるよね",
-		"だせいはそう思ったりするよ",
-		"まあ、そういう日もあるよね",
-		"特に理由はないけどそんな感じだよ",
-		"今日はなんとなくそういう気分かな",
-		"だせいもよく分からないけどね",
-	}
-
-	for length < 50 {
-		addition := additions[rand.Intn(len(additions))]
-		text += addition
-		length = len([]rune(text))
-	}
-
-	// 149文字を超えた場合は149文字で切る
-	runes := []rune(text)
-	if len(runes) > 149 {
-		text = string(runes[:149])
-	}
-
 	return text
 }
 func normalizeDaseiReply(reply string) string {
