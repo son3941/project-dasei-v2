@@ -2100,10 +2100,51 @@ func normalizeDaseiPostLength(text string) string {
 func normalizeDaseiReply(reply string) string {
 	reply = strings.TrimSpace(reply)
 
+	if reply == "" {
+		return ""
+	}
+
 	// 連続する空白を整理
 	reply = strings.Join(strings.Fields(reply), " ")
 
-	// 同じ語句が連続している場合を整理
+	// だせいの追加文が前の文章にくっついた場合、
+	// 文の区切りを入れて読みやすくする。
+	separators := []string{
+		"だせいは",
+		"だせいも",
+		"だせいが",
+		"だせいには",
+		"だせいにも",
+	}
+
+	for _, separator := range separators {
+		for {
+			index := strings.Index(reply, separator)
+
+			// 文頭ならそのまま
+			if index <= 0 {
+				break
+			}
+
+			// すでに区切られているなら何もしない
+			beforeText := reply[:index]
+
+			if strings.HasSuffix(beforeText, "。") ||
+				strings.HasSuffix(beforeText, "！") ||
+				strings.HasSuffix(beforeText, "？") ||
+				strings.HasSuffix(beforeText, "、") ||
+				strings.HasSuffix(beforeText, "\n") {
+				break
+			}
+
+			// 「だせい」の前に句点を入れる
+			reply = reply[:index] + "。" + reply[index:]
+
+			break
+		}
+	}
+
+	// 連続する句読点を整理
 	for {
 		old := reply
 
