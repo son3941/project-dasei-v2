@@ -1808,17 +1808,6 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 
 		reply = enrichedReply
 	}
-	// 短文の場合は、元の投稿と検索結果を参考にして
-	// 50〜149文字程度の自然な返信へ膨らませる。
-	//
-	// 50文字以上の返信は変更しない。
-	// 149文字を超えている返信も無理に削らない。
-	reply = ensureDaseiReplyLength(
-		reply,
-		originalText,
-		usefulWords,
-		referenceSentences,
-	)
 
 	// 最後に空白・句読点などを整理する。
 	return normalizeDaseiReply(reply)
@@ -1988,7 +1977,23 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 		"いいね":
 		isGenericReply = true
 	}
+	// 「だせいはそう思うかな」のような汎用的な返答を
+	// 元の投稿内容に合わせて少し具体化する。
+	if reply == "だせいはそう思うかな" {
+		switch {
+		case strings.Contains(originalText, "調子"):
+			return "だせいは元気にやってるかな。そっちはどう？"
 
+		case strings.Contains(originalText, "好き"):
+			return "だせいはけっこう好きかな。気分にもよるけどね"
+
+		case strings.Contains(originalText, "どう？"):
+			return "だせいはそんな感じかな。そっちはどう？"
+
+		case strings.Contains(originalText, "どう"):
+			return "だせいはそんな感じかな。どうなんやろね"
+		}
+	}
 	if !isGenericReply {
 		return reply
 	}
