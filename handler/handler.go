@@ -2235,14 +2235,14 @@ func ensureDaseiReplyLength(reply string, originalText string, referenceWords []
 		return reply
 	}
 
-	// 短文でなければ、そのまま返す
+	// すでに十分な長さなら、そのまま返す。
 	runeCount := len([]rune(reply))
-
 	if runeCount >= 50 {
 		return reply
 	}
 
-	// 元の投稿に含まれる具体的な単語を探す
+	// 短い返答を無理に50文字まで水増ししない。
+	// まず元の投稿に含まれる具体的な単語を探す。
 	usefulWord := ""
 
 	for _, word := range referenceWords {
@@ -2262,47 +2262,34 @@ func ensureDaseiReplyLength(reply string, originalText string, referenceWords []
 		}
 	}
 
-	// 返信を自然に膨らませる
-	candidates := []string{}
-
+	// 具体的な単語が見つかった場合だけ、
+	// だせいらしい短い一言を自然に補足する。
 	if usefulWord != "" {
-		candidates = append(candidates,
-			reply+"。"+usefulWord+"の話として見ると、ちょっと気になるところだね。",
-			reply+"。"+usefulWord+"については、そういう見方もありそうやね。だせいもちょっと気になる。",
-			reply+"。"+usefulWord+"のことを考えると、もう少し詳しく見てみたいところやね。",
-		)
-	}
+		candidates := []string{
+			reply + "。" + usefulWord + "の話なんやね。",
+			reply + "。" + usefulWord + "は気になるね。",
+			reply + "。" + usefulWord + "については、だせいも気になる。",
+		}
 
-	if originalText != "" {
-		candidates = append(candidates,
-			reply+"。元の話を見る限り、もう少し詳しいところまで知りたくなる内容やね。",
-			reply+"。この話だけではまだ何とも言えんけど、ちょっと気になるところではあるね。",
-		)
-	}
+		for _, candidate := range candidates {
+			count := len([]rune(candidate))
 
-	if len(candidates) == 0 {
-		return reply
-	}
+			if count <= 149 {
+				slog.Info("Dasei short reply expanded",
+					slog.String("before", reply),
+					slog.String("after", candidate),
+					slog.Int("length", count),
+				)
 
-	// 50〜149文字に収まる候補を優先
-	for _, candidate := range candidates {
-
-		count := len([]rune(candidate))
-
-		if count >= 50 && count <= 149 {
-			slog.Info("Dasei short reply expanded",
-				slog.String("before", reply),
-				slog.String("after", candidate),
-				slog.Int("length", count),
-			)
-
-			return candidate
+				return candidate
+			}
 		}
 	}
 
+	// 具体的な情報を安全に補足できない場合は、
+	// 元の短い返答をそのまま返す。
 	return reply
 }
-
 func createReply(text string) string {
 
 	// 名前を呼ばれたら必ず返信
