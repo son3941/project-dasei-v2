@@ -2098,6 +2098,7 @@ func normalizeDaseiPostLength(text string) string {
 	return text
 }
 func normalizeDaseiReply(reply string) string {
+	slog.Info("Dasei normalize CALLED", slog.String("reply", reply))
 	reply = strings.TrimSpace(reply)
 
 	if reply == "" {
