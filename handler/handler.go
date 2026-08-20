@@ -2158,6 +2158,50 @@ func normalizeDaseiReply(reply string) string {
 		}
 	}
 
+	reply = addNaturalDaseiPunctuation(reply)
+
+	return reply
+}
+func addNaturalDaseiPunctuation(reply string) string {
+	// すでに十分な句読点がある場合は何もしない
+	punctuationCount := 0
+
+	for _, r := range reply {
+		if r == '。' || r == '、' || r == '！' || r == '？' {
+			punctuationCount++
+		}
+	}
+
+	if punctuationCount >= 2 {
+		return reply
+	}
+
+	// 自然な文の切れ目になりやすい表現を補う
+	replacements := []struct {
+		from string
+		to   string
+	}{
+		{"かな特に", "かな。特に"},
+		{"かなまあ", "かな。まあ"},
+		{"かな今日は", "かな。今日は"},
+		{"かなそんな", "かな。そんな"},
+		{"よ今日は", "よ。今日は"},
+		{"よまあ", "よ。まあ"},
+		{"よそんな", "よ。そんな"},
+		{"けどそんな", "けど、そんな"},
+		{"けど今日は", "けど、今日は"},
+		{"けどまあ", "けど、まあ"},
+		{"けどなんとなく", "けど、なんとなく"},
+		{"だけどそんな", "だけど、そんな"},
+		{"だけど今日は", "だけど、今日は"},
+		{"だから今日は", "だから、今日は"},
+		{"なので今日は", "なので、今日は"},
+	}
+
+	for _, r := range replacements {
+		reply = strings.ReplaceAll(reply, r.from, r.to)
+	}
+
 	return reply
 }
 func ensureDaseiReplyLength(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
