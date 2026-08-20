@@ -2163,7 +2163,6 @@ func normalizeDaseiReply(reply string) string {
 	return reply
 }
 func addNaturalDaseiPunctuation(reply string) string {
-	// 句読点がすでに十分ある場合は何もしない
 	punctuationCount := 0
 
 	for _, r := range reply {
@@ -2176,52 +2175,138 @@ func addNaturalDaseiPunctuation(reply string) string {
 		return reply
 	}
 
-	// 文の終わり・区切りになりやすい表現
-	replacements := []struct {
-		from string
-		to   string
-	}{
-		{"だね今日は", "だね。今日は"},
-		{"だねまあ", "だね。まあ"},
-		{"だね特に", "だね。特に"},
-		{"だねこういう", "だね。こういう"},
-
-		{"だよ今日は", "だよ。今日は"},
-		{"だよまあ", "だよ。まあ"},
-		{"だよ特に", "だよ。特に"},
-		{"だよこういう", "だよ。こういう"},
-		{"だよだせい", "だよ。だせい"},
-		{"だよなんとなく", "だよ。なんとなく"},
-
-		{"かな今日は", "かな。今日は"},
-		{"かなまあ", "かな。まあ"},
-		{"かな特に", "かな。特に"},
-		{"かなこういう", "かな。こういう"},
-
-		{"よね今日は", "よね。今日は"},
-		{"よねまあ", "よね。まあ"},
-		{"よね特に", "よね。特に"},
-		{"よねこういう", "よね。こういう"},
-		{"よねだせい", "よね。だせい"},
-
-		{"けどそんな", "けど、そんな"},
-		{"けど今日は", "けど、今日は"},
-		{"けどまあ", "けど、まあ"},
-		{"けどこういう", "けど、こういう"},
-		{"けどね", "けどね。"},
-
-		{"だけどそんな", "だけど、そんな"},
-		{"だけど今日は", "だけど、今日は"},
-		{"だけどまあ", "だけど、まあ"},
-
-		{"こういうことって", "こういうことって"},
-		{"今日はなんとなく", "今日は、なんとなく"},
-		{"まあそういう", "まあ、そういう"},
-		{"なんとなくそういう", "なんとなく、そういう"},
+	sentenceEndings := []string{
+		"かもしれない",
+		"と思ったりする",
+		"と思う",
+		"と思った",
+		"でしょう",
+		"だろう",
+		"かなあ",
+		"かな",
+		"ですよ",
+		"ですね",
+		"だよ",
+		"だね",
+		"よね",
+		"かも",
+		"よ",
+		"ね",
 	}
 
-	for _, r := range replacements {
-		reply = strings.ReplaceAll(reply, r.from, r.to)
+	sentenceStarters := []string{
+		"なんとなく",
+		"そんな",
+		"特に",
+		"今日は",
+		"まあ",
+		"だせい",
+		"こういう",
+		"そういう",
+		"それ",
+		"でも",
+		"ただ",
+		"だから",
+		"そして",
+		"また",
+		"本当に",
+		"たぶん",
+		"たしかに",
+	}
+	commaWords := []string{
+		"けど",
+		"けれど",
+		"から",
+		"ので",
+	}
+
+	for {
+		changed := false
+
+		for _, ending := range sentenceEndings {
+			index := strings.Index(reply, ending)
+
+			if index < 0 {
+				continue
+			}
+
+			end := index + len(ending)
+
+			if end >= len(reply) {
+				continue
+			}
+
+			next := reply[end:]
+
+			if strings.HasPrefix(next, "。") ||
+				strings.HasPrefix(next, "、") ||
+				strings.HasPrefix(next, "！") ||
+				strings.HasPrefix(next, "？") {
+				continue
+			}
+
+			if ending == "よ" && strings.HasPrefix(next, "ね") {
+				continue
+			}
+
+			for _, starter := range sentenceStarters {
+				if strings.HasPrefix(next, starter) {
+					reply = reply[:end] + "。" + reply[end:]
+					changed = true
+					break
+				}
+			}
+
+			if changed {
+				break
+			}
+		}
+
+		if changed {
+			punctuationCount++
+
+			if punctuationCount >= 3 {
+				break
+			}
+
+			continue
+		}
+		for _, word := range commaWords {
+			index := strings.Index(reply, word)
+
+			if index < 0 {
+				continue
+			}
+
+			end := index + len(word)
+
+			if end >= len(reply) {
+				continue
+			}
+
+			next := reply[end:]
+
+			if strings.HasPrefix(next, "。") ||
+				strings.HasPrefix(next, "、") ||
+				strings.HasPrefix(next, "！") ||
+				strings.HasPrefix(next, "？") {
+				continue
+			}
+
+			reply = reply[:end] + "、" + reply[end:]
+			changed = true
+			break
+		}
+
+		if !changed {
+			break
+		}
+
+		punctuationCount++
+
+		if punctuationCount >= 3 {
+			break
+		}
 	}
 
 	return reply
