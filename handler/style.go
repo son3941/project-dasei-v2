@@ -288,7 +288,7 @@ func ojisanTranslate(text string) string {
 		closing,
 	)
 
-	result = polishDaseiReply(result, result)
+	result = finalizeDaseiReply(result, result)
 
 	return result
 }

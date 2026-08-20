@@ -22,7 +22,7 @@ func mentionReply(text string) string {
 
 	// メンションを除いた本文で通常の返信処理を行う
 	if reply := fixedReply(text); reply != "" {
-		return polishDaseiReply(text, reply)
+		return finalizeDaseiReply(text, reply)
 	}
 
 	return createReply(text)

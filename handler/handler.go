@@ -2203,7 +2203,7 @@ func addNaturalDaseiPunctuation(reply string) string {
 	slog.Info("PUNCTUATION AFTER", slog.String("reply", reply))
 	return reply
 }
-func ensureDaseiReplyLength(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
+func ensureDaseiReplyLength(reply string, originalText string) string {
 	reply = strings.TrimSpace(reply)
 	originalText = strings.TrimSpace(originalText)
 
@@ -2211,17 +2211,30 @@ func ensureDaseiReplyLength(reply string, originalText string, referenceWords []
 		return reply
 	}
 
-	// すでに十分な長さなら、そのまま返す。
-	runeCount := len([]rune(reply))
-	if runeCount >= 50 {
+	// 50〜140文字の中から今回の目標文字数をランダムに決める。
+	targetLength := rand.Intn(91) + 50
+
+	// すでに目標以上なら、そのまま返す。
+	length := len([]rune(reply))
+
+	if length >= targetLength {
+		if length > 140 {
+			runes := []rune(reply)
+			return string(runes[:140])
+		}
+
 		return reply
 	}
 
-	// 短い返答を無理に50文字まで水増ししない。
-	// まず元の投稿に含まれる具体的な単語を探す。
+	// 元の投稿から、返信に使えそうな具体的な言葉を探す。
 	usefulWord := ""
 
-	for _, word := range referenceWords {
+	words := strings.FieldsFunc(originalText, func(r rune) bool {
+		return unicode.IsSpace(r) ||
+			strings.ContainsRune("、。！？!?「」『』（）()・,.", r)
+	})
+
+	for _, word := range words {
 		word = strings.TrimSpace(word)
 
 		if word == "" {
@@ -2232,38 +2245,56 @@ func ensureDaseiReplyLength(reply string, originalText string, referenceWords []
 			continue
 		}
 
-		if strings.Contains(originalText, word) {
-			usefulWord = word
+		usefulWord = word
+		break
+	}
+
+	// だせいらしい補足候補。
+	additions := []string{
+		" そういうところ、ちょっと気になるね。",
+		" まあ、そういう日もあるよね。",
+		" だせいもなんとなく分かる気がする。",
+		" こういう話って、意外と気になるんやね。",
+		" そう考えると、なかなか面白い話やね。",
+		" なんとなくそんな感じがするね。",
+		" だせいはこういう話、けっこう好きやで。",
+		" そういうことってあるよね、だせいもそう思う。",
+		" もう少し詳しく聞いてみたいところやね。",
+	}
+	if usefulWord != "" {
+		additions = append(additions,
+			" "+usefulWord+"の話として見ると、ちょっと気になるね。",
+			" "+usefulWord+"については、そういう見方もありそうやね。",
+			" "+usefulWord+"のことを考えると、なかなか興味深いね。",
+		)
+	}
+
+	// 目標文字数に届くまで補足を追加する。
+	for length < targetLength {
+
+		addition := additions[rand.Intn(len(additions))]
+		candidate := reply + addition
+
+		candidateLength := len([]rune(candidate))
+
+		// 140文字を超えないようにする。
+		if candidateLength > 140 {
+			runes := []rune(candidate)
+			reply = string(runes[:140])
+			length = 140
 			break
 		}
+
+		reply = candidate
+		length = candidateLength
 	}
 
-	// 具体的な単語が見つかった場合だけ、
-	// だせいらしい短い一言を自然に補足する。
-	if usefulWord != "" {
-		candidates := []string{
-			reply + "。" + usefulWord + "の話なんやね。",
-			reply + "。" + usefulWord + "は気になるね。",
-			reply + "。" + usefulWord + "については、だせいも気になる。",
-		}
+	slog.Info("Dasei reply length normalized",
+		slog.Int("target", targetLength),
+		slog.Int("length", length),
+		slog.String("reply", reply),
+	)
 
-		for _, candidate := range candidates {
-			count := len([]rune(candidate))
-
-			if count <= 149 {
-				slog.Info("Dasei short reply expanded",
-					slog.String("before", reply),
-					slog.String("after", candidate),
-					slog.Int("length", count),
-				)
-
-				return candidate
-			}
-		}
-	}
-
-	// 具体的な情報を安全に補足できない場合は、
-	// 元の短い返答をそのまま返す。
 	return reply
 }
 func createReply(text string) string {
@@ -2318,7 +2349,7 @@ func createReply(text string) string {
 			learnedPhrases = filteredPhrases
 
 			learnedWordsMu.Unlock()
-			return addEmoji("わかった！")
+			return finalizeDaseiReply(text, addEmoji("わかった！"))
 		}
 	}
 
@@ -2357,13 +2388,13 @@ func createReply(text string) string {
 				)
 			}
 
-			return addEmoji("わかった！")
+			return finalizeDaseiReply(text, addEmoji("わかった！"))
 		}
 	} // ← これを追加
 	text = applyNicknames(text)
 	reply := replyFromMemory(text)
 	if reply != "" {
-		return reply
+		return finalizeDaseiReply(text, reply)
 	}
 
 	// 返信の10%だけインプレゾンビ
@@ -2375,23 +2406,30 @@ func createReply(text string) string {
 		switch {
 
 		case mode < 30:
-			return zombieEnglish()
-
+			return finalizeDaseiReply(text, zombieEnglish())
 		case mode < 60:
-			return zombieJapanese()
+			return finalizeDaseiReply(text, zombieJapanese())
 
 		default:
-			return zombieReply(text)
+			return finalizeDaseiReply(text, zombieReply(text))
 		}
 	}
 	// 自然な日本語で返信
 	reply = generateNaturalReply(text)
 
 	if reply != "" {
-		return polishDaseiReply(text, reply)
+		return finalizeDaseiReply(text, reply)
 	}
 
-	return "そうなんだね"
+	return finalizeDaseiReply(text, "そうなんだね")
+}
+func finalizeDaseiReply(originalText string, reply string) string {
+	if reply == "" {
+		return ""
+	}
+
+	reply = polishDaseiReply(originalText, reply)
+	return ensureDaseiReplyLength(reply, originalText)
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
@@ -2735,7 +2773,7 @@ func createChuunibyou() string {
 		result = string([]rune(result)[:149])
 	}
 
-	result = polishDaseiReply(result, result)
+	result = finalizeDaseiReply(result, result)
 
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])
