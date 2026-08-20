@@ -2164,6 +2164,7 @@ func normalizeDaseiReply(reply string) string {
 	return reply
 }
 func addNaturalDaseiPunctuation(reply string) string {
+	slog.Info("PUNCTUATION BEFORE", slog.String("reply", reply))
 	reply = strings.TrimSpace(reply)
 
 	if reply == "" {
@@ -2223,7 +2224,7 @@ func addNaturalDaseiPunctuation(reply string) string {
 			reply = reply[:end] + "、" + reply[end:]
 		}
 	}
-
+	slog.Info("PUNCTUATION AFTER", slog.String("reply", reply))
 	return reply
 }
 func ensureDaseiReplyLength(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
