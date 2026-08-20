@@ -2284,7 +2284,6 @@ func ensureDaseiReplyLength(reply string, originalText string, referenceWords []
 
 	// 50〜149文字に収まる候補を優先
 	for _, candidate := range candidates {
-		candidate = normalizeDaseiReply(candidate)
 
 		count := len([]rune(candidate))
 
