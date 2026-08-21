@@ -2073,6 +2073,54 @@ func normalizeDaseiPostLength(text string) string {
 
 	return text
 }
+func cleanRepeatedDaseiReply(reply string) string {
+	reply = strings.TrimSpace(reply)
+
+	if reply == "" {
+		return ""
+	}
+
+	// 同じ文章が連続している場合、1回だけ残す。
+	for {
+		old := reply
+
+		parts := strings.FieldsFunc(reply, func(r rune) bool {
+			return r == '。' || r == '！' || r == '？'
+		})
+
+		if len(parts) < 2 {
+			break
+		}
+
+		cleaned := make([]string, 0, len(parts))
+
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+
+			if part == "" {
+				continue
+			}
+
+			if len(cleaned) > 0 && cleaned[len(cleaned)-1] == part {
+				continue
+			}
+
+			cleaned = append(cleaned, part)
+		}
+
+		if len(cleaned) == 0 {
+			break
+		}
+
+		reply = strings.Join(cleaned, "。")
+
+		if reply == old {
+			break
+		}
+	}
+
+	return reply
+}
 func normalizeDaseiReply(reply string) string {
 	slog.Info("Dasei normalize CALLED", slog.String("reply", reply))
 	reply = strings.TrimSpace(reply)
@@ -2445,6 +2493,9 @@ func finalizeDaseiReply(originalText string, reply string) string {
 	// 文字数調整で追加された文章も含めて、
 	// 最後にもう一度校正する。
 	reply = polishDaseiReply(originalText, reply)
+
+	// 最後に重複した文章を整理する。
+	reply = cleanRepeatedDaseiReply(reply)
 
 	return reply
 }
