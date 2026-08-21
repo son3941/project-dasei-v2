@@ -138,12 +138,45 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		authenticator: authenticator,
 	}
 }
+func polishDaseiMutter(reply string) string {
+	reply = strings.TrimSpace(reply)
+
+	if reply == "" {
+		return ""
+	}
+
+	wikipediaResult := searchWikipedia(reply)
+	networkResult := searchWeb(reply)
+
+	webResult := wikipediaResult + "\n" + networkResult
+
+	slog.Info("Mutter reference search",
+		slog.String("reply", reply),
+		slog.String("wikipedia", wikipediaResult),
+		slog.String("network", networkResult),
+	)
+
+	referenceWords := extractReferenceWords(webResult)
+	referenceSentences := extractReferenceSentences(webResult)
+
+	reply = polishWithReference(
+		reply,
+		reply,
+		referenceWords,
+		referenceSentences,
+	)
+
+	reply = checkReferenceSentences(reply, referenceSentences)
+
+	return normalizeDaseiReply(reply)
+}
 func (h *Handler) PostMutter(ctx context.Context) error {
 	if rand.Intn(100) >= PostChance {
 		return nil
 	}
 	reply := createMutter("")
 	reply = randomStyle(reply)
+	reply = polishDaseiMutter(reply)
 	reply = normalizeDaseiPostLength(reply)
 
 	if reply == "" {
