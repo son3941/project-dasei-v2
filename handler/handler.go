@@ -1966,101 +1966,23 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 		return reply
 	}
 
-	isGenericReply := false
+	// この関数では返信を生成・水増ししない。
+	// 検索結果は、元投稿と返信の関連性を確認するためだけに使う。
+	replyTokens := tokenizeForPolish(reply)
+	originalTokens := tokenizeForPolish(originalText)
 
-	switch reply {
-	case "どうなんやろ",
-		"気になるところだね",
-		"そうなんだね",
-		"なるほど",
-		"そういうことか",
-		"いいね":
-		isGenericReply = true
-	}
-	// 「だせいはそう思うかな」のような汎用的な返答を
-	// 元の投稿内容に合わせて少し具体化する。
-	if reply == "だせいはそう思うかな" {
-		switch {
-		case strings.Contains(originalText, "調子"):
-			return "だせいは元気にやってるかな。そっちはどう？"
-
-		case strings.Contains(originalText, "好き"):
-			return "だせいはけっこう好きかな。気分にもよるけどね"
-
-		case strings.Contains(originalText, "どう？"):
-			return "だせいはそんな感じかな。そっちはどう？"
-
-		case strings.Contains(originalText, "どう"):
-			return "だせいはそんな感じかな。どうなんやろね"
-		}
-	}
-	if !isGenericReply {
+	if len(replyTokens) == 0 || len(originalTokens) == 0 {
 		return reply
 	}
 
-	for _, word := range referenceWords {
-		word = strings.TrimSpace(word)
+	matched := countRelevantCommonWords(replyTokens, originalTokens)
 
-		if word == "" {
-			continue
-		}
-
-		if len([]rune(word)) < 2 {
-			continue
-		}
-
-		if !strings.Contains(originalText, word) {
-			continue
-		}
-
-		if strings.Contains(reply, word) {
-			continue
-		}
-
-		switch reply {
-		case "どうなんやろ":
-			return word + "の話なんやろね"
-
-		case "気になるところだね":
-			return word + "の話、気になるね"
-
-		case "そうなんだね":
-			return word + "なんやね"
-
-		case "なるほど":
-			return word + "なんやね"
-
-		case "そういうことか":
-			return word + "の話なんやね"
-
-		case "いいね":
-			return word + "なんやね、いいね"
-		}
-	}
-	// 検索結果に具体的な文章があり、
-	// 元投稿が事実確認型なら、検索結果を使って具体化する
-	if len(referenceSentences) > 0 && isFactCheckReply(originalText, reply) {
-		sentence := strings.TrimSpace(referenceSentences[0])
-
-		if sentence != "" {
-			// 検索結果そのものを長文で返さない
-			runes := []rune(sentence)
-
-			if len(runes) > 80 {
-				sentence = string(runes[:80]) + "…"
-			}
-
-			switch reply {
-			case "どうなんやろ",
-				"気になるところだね",
-				"そうなんだね",
-				"なるほど",
-				"そういうことか",
-				"いいね":
-				return "調べてみたら、" + sentence + " みたいだね"
-			}
-		}
-	}
+	slog.Info("Dasei reply relevance check",
+		slog.Int("matched", matched),
+		slog.Int("referenceWords", len(referenceWords)),
+		slog.Int("referenceSentences", len(referenceSentences)),
+		slog.String("reply", reply),
+	)
 
 	return reply
 }
@@ -2264,59 +2186,65 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 
 	length := len([]rune(reply))
 
-	// 149文字を超えている場合は安全に切る。
 	if length > maxLength {
 		runes := []rune(reply)
-		reply = string(runes[:maxLength])
-
-		slog.Info("Dasei reply truncated",
-			slog.Int("original_length", length),
-			slog.Int("length", maxLength),
-		)
-
-		return reply
+		return string(runes[:maxLength])
 	}
 
-	// すでに50〜149文字なら、そのまま返す。
 	if length >= minLength {
 		return reply
 	}
 
-	// 短い返信だけ自然な補足を追加する。
-	additions := []string{
-		"そういうところ、ちょっと気になるね。",
-		"まあ、そういう日もあるよね。",
-		"そう考えると、なかなか面白い話やね。",
-		"なんとなくそんな感じがするね。",
-		"だせいはこういう話、けっこう好きやで。",
-	}
-	// 返信が50文字に届くまで補足する。
-	// 同じ補足を連続して使わない。
-	additionIndex := 0
+	// 元投稿から、短すぎる返信を具体化する。
+	tokens := tokenizeForPolish(originalText)
 
-	for length < minLength {
-		addition := additions[additionIndex%len(additions)]
-		additionIndex++
+	var usefulWord string
 
-		candidate := reply + " " + addition
-		candidateLength := len([]rune(candidate))
+	for _, token := range tokens {
+		token = strings.TrimSpace(token)
 
-		if candidateLength > maxLength {
-			// 149文字を超える場合は安全に切る。
-			runes := []rune(candidate)
-			reply = string(runes[:maxLength])
-			length = maxLength
-			break
+		if len([]rune(token)) < 2 {
+			continue
 		}
 
-		reply = candidate
-		length = candidateLength
+		// 助詞や記号だけの語は除外。
+		if token == "こと" ||
+			token == "もの" ||
+			token == "ところ" ||
+			token == "感じ" ||
+			token == "今日" {
+			continue
+		}
+
+		usefulWord = token
+		break
+	}
+
+	if usefulWord != "" {
+		additions := []string{
+			usefulWord + "の話なんやね。だせいも、そういう話はちょっと気になるところやで。",
+			usefulWord + "だったんやね。そういうことがあると、だせいもなんとなく気になるな。",
+			usefulWord + "のことなんやね。詳しいことは分からんけど、そういう話も面白いね。",
+		}
+
+		for _, addition := range additions {
+			candidate := reply + " " + addition
+
+			if len([]rune(candidate)) >= minLength {
+				if len([]rune(candidate)) > maxLength {
+					continue
+				}
+
+				reply = candidate
+				break
+			}
+		}
 	}
 
 	slog.Info("Dasei reply length normalized",
 		slog.Int("min", minLength),
 		slog.Int("max", maxLength),
-		slog.Int("length", length),
+		slog.Int("length", len([]rune(reply))),
 		slog.String("reply", reply),
 	)
 
