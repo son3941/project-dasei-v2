@@ -2267,25 +2267,16 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	}
 
 	// 元投稿から具体的な語を取れなかった場合でも、
-	// 短すぎる返信を50文字以上にする。
+	// 短すぎる返信を自然に50文字以上へ補足する。
 	if len([]rune(reply)) < minLength {
-		additions := []string{
-			"そういう話、だせいも少し気になるところやで。",
-			"なんとなく気になる話やね。だせいもそう思うかな。",
-			"そういうこともあるんやね。だせいはちょっと気になるな。",
-		}
+		addition := "そういう話、だせいも少し気になるところやで。なんとなくそんな感じもするし、もう少し聞いてみたいかな。"
 
-		for _, addition := range additions {
-			candidate := reply + " " + addition
+		candidate := reply + " " + addition
 
-			if len([]rune(candidate)) >= minLength &&
-				len([]rune(candidate)) <= maxLength {
-				reply = candidate
-				break
-			}
+		if len([]rune(candidate)) <= maxLength {
+			reply = candidate
 		}
 	}
-
 	slog.Info("Dasei reply length normalized",
 		slog.Int("min", minLength),
 		slog.Int("max", maxLength),
