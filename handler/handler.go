@@ -1845,17 +1845,17 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	reply = strings.TrimSpace(reply)
 	originalText = strings.TrimSpace(originalText)
 
-	if reply == "" {
-		return ""
+	if reply == "" || originalText == "" {
+		return reply
 	}
 
-	// 検索結果から、元の文章に関連する文章を探す。
 	originalTokens := tokenizeForPolish(originalText)
 
 	if len(originalTokens) == 0 {
 		return reply
 	}
 
+	// 元の文章と最も関連性の高い検索結果を探す
 	bestSentence := ""
 	bestScore := 0
 
@@ -1883,27 +1883,21 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
-	slog.Info("Dasei polish candidate",
-		slog.Int("score", bestScore),
-		slog.String("reply", reply),
-		slog.String("reference", bestSentence),
-	)
-
-	// 関連する検索結果がなければ、
-	// 元のだせい文章をそのまま返す。
 	if bestSentence == "" || bestScore < 1 {
-		return reply
-	}
+		slog.Info("Dasei polish skipped",
+			slog.String("reason", "no relevant reference"),
+			slog.Int("score", bestScore),
+			slog.String("reply", reply),
+		)
 
-	referenceWords = extractUsefulReferenceWords(referenceWords)
-
-	if len(referenceWords) == 0 {
-		return reply
+		return normalizeDaseiReply(reply)
 	}
-	// 元の文章に含まれている検索語を確認する。
+	// 検索結果から使えそうな単語を抽出
+	usefulWords := extractUsefulReferenceWords(referenceWords)
+
 	var matchedWords []string
 
-	for _, word := range referenceWords {
+	for _, word := range usefulWords {
 		word = strings.TrimSpace(word)
 
 		if word == "" {
@@ -1918,60 +1912,87 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
-	// 元の文章と検索結果の間に共通する語がなければ、
-	// 無理に文章を変更しない。
 	if len(matchedWords) == 0 {
 		slog.Info("Dasei polish skipped",
 			slog.String("reason", "no matched reference words"),
 			slog.String("reply", reply),
 		)
-		return reply
+
+		return normalizeDaseiReply(reply)
 	}
 
-	// 検索結果から得た関連語を使って、
-	// 元のだせい文章を少し具体化する。
-	//
-	// 固定テンプレを毎回付けるのではなく、
-	// 検索結果から得た語をランダムに選ぶ。
-	word := matchedWords[rand.Intn(len(matchedWords))]
+	// 同じ単語が複数回入らないようにする
+	uniqueWords := make([]string, 0, len(matchedWords))
+	seen := make(map[string]bool)
 
-	if word == "" || strings.Contains(reply, word) {
-		return reply
+	for _, word := range matchedWords {
+		if seen[word] {
+			continue
+		}
+
+		seen[word] = true
+		uniqueWords = append(uniqueWords, word)
 	}
 
-	candidates := []string{
-		reply + " " + word + "も関係してるんやね。",
-		reply + " " + word + "っていうのもあるんやね。",
-		reply + " " + word + "のことも少し気になるな。",
-		reply + " " + word + "って聞くと、なんとなく分かる気がするで。",
+	matchedWords = uniqueWords
+
+	if len(matchedWords) > 3 {
+		matchedWords = matchedWords[:3]
+	}
+	// 検索結果の文章を使って、元のだせい文章を具体化する。
+	// 固定テンプレを単純に付け足すのではなく、
+	// 検索結果の内容を文章の一部として利用する。
+	var candidates []string
+
+	if len(matchedWords) >= 1 {
+		candidates = append(candidates,
+			reply+" "+matchedWords[0]+"について調べてみると、"+bestSentence+"。だせいもちょっと気になってきたな。",
+		)
 	}
 
-	var valid []string
+	if len(matchedWords) >= 2 {
+		candidates = append(candidates,
+			reply+" "+matchedWords[0]+"とか"+matchedWords[1]+"って話なんやね。調べてみると、"+bestSentence+"。なんとなく分かってきた気がする。",
+		)
+	}
+
+	candidates = append(candidates,
+		reply+" "+bestSentence+"。こういう話って、調べてみると意外といろいろあるんやね。だせいも少し気になってきた。",
+	)
+
+	// 50〜140文字に収まる候補だけを残す。
+	var validCandidates []string
 
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
 
 		length := len([]rune(candidate))
 
-		if length >= 20 && length <= 140 {
-			valid = append(valid, candidate)
+		if length >= 50 && length <= 140 {
+			validCandidates = append(validCandidates, candidate)
 		}
 	}
+	if len(validCandidates) == 0 {
+		slog.Info("Dasei polish skipped",
+			slog.String("reason", "no candidate within length"),
+			slog.Int("score", bestScore),
+			slog.String("reply", reply),
+		)
 
-	if len(valid) == 0 {
-		return reply
+		return normalizeDaseiReply(reply)
 	}
 
-	result := valid[rand.Intn(len(valid))]
+	// 複数候補からランダムに選ぶ。
+	result := validCandidates[rand.Intn(len(validCandidates))]
 
 	slog.Info("Dasei polish applied",
+		slog.Int("score", bestScore),
 		slog.String("before", reply),
 		slog.String("after", result),
-		slog.String("referenceWord", word),
-		slog.String("referenceSentence", bestSentence),
+		slog.String("reference", bestSentence),
 	)
 
-	return result
+	return normalizeDaseiReply(result)
 }
 func countRelevantCommonWords(a []string, b []string) int {
 	stopWords := map[string]bool{
