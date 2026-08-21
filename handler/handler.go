@@ -2258,11 +2258,28 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 		for _, addition := range additions {
 			candidate := reply + " " + addition
 
-			if len([]rune(candidate)) >= minLength {
-				if len([]rune(candidate)) > maxLength {
-					continue
-				}
+			if len([]rune(candidate)) >= minLength &&
+				len([]rune(candidate)) <= maxLength {
+				reply = candidate
+				break
+			}
+		}
+	}
 
+	// 元投稿から具体的な語を取れなかった場合でも、
+	// 短すぎる返信を50文字以上にする。
+	if len([]rune(reply)) < minLength {
+		additions := []string{
+			"そういう話、だせいも少し気になるところやで。",
+			"なんとなく気になる話やね。だせいもそう思うかな。",
+			"そういうこともあるんやね。だせいはちょっと気になるな。",
+		}
+
+		for _, addition := range additions {
+			candidate := reply + " " + addition
+
+			if len([]rune(candidate)) >= minLength &&
+				len([]rune(candidate)) <= maxLength {
 				reply = candidate
 				break
 			}
