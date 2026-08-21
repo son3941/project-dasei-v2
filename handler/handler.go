@@ -1987,7 +1987,8 @@ func applyReferenceWords(reply string, usefulWords []string) string {
 		return reply
 	}
 
-	matched := 0
+	// 返信にすでに含まれている検索語は除外する。
+	var newWords []string
 
 	for _, word := range usefulWords {
 		word = strings.TrimSpace(word)
@@ -1996,21 +1997,53 @@ func applyReferenceWords(reply string, usefulWords []string) string {
 			continue
 		}
 
-		for _, token := range replyTokens {
-			if token == word {
-				matched++
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		if strings.Contains(reply, word) {
+			continue
+		}
+
+		newWords = append(newWords, word)
+
+		if len(newWords) >= 3 {
+			break
+		}
+	}
+
+	if len(newWords) == 0 {
+		return reply
+	}
+	// 検索語を単純に羅列せず、
+	// 元の返信に自然な補足として接続する。
+	for _, word := range newWords {
+		candidates := []string{
+			reply + " " + word + "の話も気になるね。",
+			reply + " " + word + "ってところが面白いね。",
+			reply + " " + word + "のことも少し気になるな。",
+		}
+
+		for _, candidate := range candidates {
+			candidate = strings.TrimSpace(candidate)
+
+			if len([]rune(candidate)) <= 140 {
+				reply = candidate
 				break
 			}
+		}
+
+		if len([]rune(reply)) >= 50 {
+			break
 		}
 	}
 
 	slog.Info("Wikipedia reference words applied",
 		slog.String("reply", reply),
-		slog.Int("matched", matched),
-		slog.Int("usefulWords", len(usefulWords)),
+		slog.Int("usefulWords", len(newWords)),
 	)
 
-	return reply
+	return normalizeDaseiReply(reply)
 }
 func enrichDaseiReply(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
 	reply = strings.TrimSpace(reply)
