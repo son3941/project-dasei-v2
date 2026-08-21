@@ -1855,10 +1855,8 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		return reply
 	}
 
-	// 元の文章と最も関連性の高い検索結果を探す
 	bestSentence := ""
 	bestScore := 0
-
 	for _, sentence := range referenceSentences {
 		sentence = strings.TrimSpace(sentence)
 
@@ -1892,7 +1890,6 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 
 		return normalizeDaseiReply(reply)
 	}
-	// 検索結果から使えそうな単語を抽出
 	usefulWords := extractUsefulReferenceWords(referenceWords)
 
 	var matchedWords []string
@@ -1912,16 +1909,6 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
-	if len(matchedWords) == 0 {
-		slog.Info("Dasei polish skipped",
-			slog.String("reason", "no matched reference words"),
-			slog.String("reply", reply),
-		)
-
-		return normalizeDaseiReply(reply)
-	}
-
-	// 同じ単語が複数回入らないようにする
 	uniqueWords := make([]string, 0, len(matchedWords))
 	seen := make(map[string]bool)
 
@@ -1939,28 +1926,32 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	if len(matchedWords) > 3 {
 		matchedWords = matchedWords[:3]
 	}
-	// 検索結果の文章を使って、元のだせい文章を具体化する。
-	// 固定テンプレを単純に付け足すのではなく、
-	// 検索結果の内容を文章の一部として利用する。
 	var candidates []string
+
+	// 元の返信を土台にしつつ、
+	// 検索結果の文章から得た情報を使って
+	// 返信全体を自然に組み直す。
+	if bestSentence != "" {
+		candidates = append(candidates,
+			bestSentence+"。"+reply,
+		)
+
+		candidates = append(candidates,
+			reply+" "+bestSentence+"。",
+		)
+	}
 
 	if len(matchedWords) >= 1 {
 		candidates = append(candidates,
-			reply+" "+matchedWords[0]+"について調べてみると、"+bestSentence+"。だせいもちょっと気になってきたな。",
+			matchedWords[0]+"について調べてみると、"+bestSentence+"。"+reply,
 		)
 	}
 
 	if len(matchedWords) >= 2 {
 		candidates = append(candidates,
-			reply+" "+matchedWords[0]+"とか"+matchedWords[1]+"って話なんやね。調べてみると、"+bestSentence+"。なんとなく分かってきた気がする。",
+			matchedWords[0]+"と"+matchedWords[1]+"について見ると、"+bestSentence+"。"+reply,
 		)
 	}
-
-	candidates = append(candidates,
-		reply+" "+bestSentence+"。こういう話って、調べてみると意外といろいろあるんやね。だせいも少し気になってきた。",
-	)
-
-	// 50〜140文字に収まる候補だけを残す。
 	var validCandidates []string
 
 	for _, candidate := range candidates {
@@ -1972,17 +1963,11 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 			validCandidates = append(validCandidates, candidate)
 		}
 	}
-	if len(validCandidates) == 0 {
-		slog.Info("Dasei polish skipped",
-			slog.String("reason", "no candidate within length"),
-			slog.Int("score", bestScore),
-			slog.String("reply", reply),
-		)
 
+	if len(validCandidates) == 0 {
 		return normalizeDaseiReply(reply)
 	}
 
-	// 複数候補からランダムに選ぶ。
 	result := validCandidates[rand.Intn(len(validCandidates))]
 
 	slog.Info("Dasei polish applied",
