@@ -295,35 +295,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			slog.Info("reply skipped by shouldReplyToPost")
 			return nil
 		}
-		authCtx, err := h.authenticator.AuthorizedContext(ctx)
-		if err != nil {
-			return err
-		}
 
-		communityID := post.GetPost().GetCommunityId()
-
-		memberPosts, err := h.getMemberPosts(
-			authCtx,
-			communityID,
-			userID,
-		)
-		if err != nil {
-			slog.Error("getMemberPosts failed",
-				slog.String("error", err.Error()),
-			)
-			memberPosts = nil
-		}
-
-		slog.Info("member posts loaded",
-			slog.String("user_id", userID),
-			slog.Int("count", len(memberPosts)),
-		)
-		for i, memberPost := range memberPosts {
-			slog.Info("member post",
-				slog.Int("index", i),
-				slog.String("text", memberPost),
-			)
-		}
 		slog.Info("before GenerateReply")
 		reply := GenerateReply(
 			text,
@@ -341,7 +313,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if reply == "" {
 			return nil
 		}
-		authCtx, err = h.authenticator.AuthorizedContext(ctx)
+		authCtx, err := h.authenticator.AuthorizedContext(ctx)
 		if err != nil {
 			return err
 		}
@@ -349,7 +321,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			"post object",
 			slog.Any("post", post.GetPost()),
 		)
-		communityID = post.GetPost().GetCommunityId()
+		communityID := post.GetPost().GetCommunityId()
 		h.communityID = communityID
 		replyTo := post.GetPost().GetPostId()
 
@@ -1994,23 +1966,101 @@ func enrichDaseiReply(reply string, originalText string, referenceWords []string
 		return reply
 	}
 
-	// この関数では返信を生成・水増ししない。
-	// 検索結果は、元投稿と返信の関連性を確認するためだけに使う。
-	replyTokens := tokenizeForPolish(reply)
-	originalTokens := tokenizeForPolish(originalText)
+	isGenericReply := false
 
-	if len(replyTokens) == 0 || len(originalTokens) == 0 {
+	switch reply {
+	case "どうなんやろ",
+		"気になるところだね",
+		"そうなんだね",
+		"なるほど",
+		"そういうことか",
+		"いいね":
+		isGenericReply = true
+	}
+	// 「だせいはそう思うかな」のような汎用的な返答を
+	// 元の投稿内容に合わせて少し具体化する。
+	if reply == "だせいはそう思うかな" {
+		switch {
+		case strings.Contains(originalText, "調子"):
+			return "だせいは元気にやってるかな。そっちはどう？"
+
+		case strings.Contains(originalText, "好き"):
+			return "だせいはけっこう好きかな。気分にもよるけどね"
+
+		case strings.Contains(originalText, "どう？"):
+			return "だせいはそんな感じかな。そっちはどう？"
+
+		case strings.Contains(originalText, "どう"):
+			return "だせいはそんな感じかな。どうなんやろね"
+		}
+	}
+	if !isGenericReply {
 		return reply
 	}
 
-	matched := countRelevantCommonWords(replyTokens, originalTokens)
+	for _, word := range referenceWords {
+		word = strings.TrimSpace(word)
 
-	slog.Info("Dasei reply relevance check",
-		slog.Int("matched", matched),
-		slog.Int("referenceWords", len(referenceWords)),
-		slog.Int("referenceSentences", len(referenceSentences)),
-		slog.String("reply", reply),
-	)
+		if word == "" {
+			continue
+		}
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		if !strings.Contains(originalText, word) {
+			continue
+		}
+
+		if strings.Contains(reply, word) {
+			continue
+		}
+
+		switch reply {
+		case "どうなんやろ":
+			return word + "の話なんやろね"
+
+		case "気になるところだね":
+			return word + "の話、気になるね"
+
+		case "そうなんだね":
+			return word + "なんやね"
+
+		case "なるほど":
+			return word + "なんやね"
+
+		case "そういうことか":
+			return word + "の話なんやね"
+
+		case "いいね":
+			return word + "なんやね、いいね"
+		}
+	}
+	// 検索結果に具体的な文章があり、
+	// 元投稿が事実確認型なら、検索結果を使って具体化する
+	if len(referenceSentences) > 0 && isFactCheckReply(originalText, reply) {
+		sentence := strings.TrimSpace(referenceSentences[0])
+
+		if sentence != "" {
+			// 検索結果そのものを長文で返さない
+			runes := []rune(sentence)
+
+			if len(runes) > 80 {
+				sentence = string(runes[:80]) + "…"
+			}
+
+			switch reply {
+			case "どうなんやろ",
+				"気になるところだね",
+				"そうなんだね",
+				"なるほど",
+				"そういうことか",
+				"いいね":
+				return "調べてみたら、" + sentence + " みたいだね"
+			}
+		}
+	}
 
 	return reply
 }
@@ -2022,54 +2072,6 @@ func normalizeDaseiPostLength(text string) string {
 	}
 
 	return text
-}
-func cleanRepeatedDaseiReply(reply string) string {
-	reply = strings.TrimSpace(reply)
-
-	if reply == "" {
-		return ""
-	}
-
-	// 同じ文章が連続している場合、1回だけ残す。
-	for {
-		old := reply
-
-		parts := strings.FieldsFunc(reply, func(r rune) bool {
-			return r == '。' || r == '！' || r == '？'
-		})
-
-		if len(parts) < 2 {
-			break
-		}
-
-		cleaned := make([]string, 0, len(parts))
-
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-
-			if part == "" {
-				continue
-			}
-
-			if len(cleaned) > 0 && cleaned[len(cleaned)-1] == part {
-				continue
-			}
-
-			cleaned = append(cleaned, part)
-		}
-
-		if len(cleaned) == 0 {
-			break
-		}
-
-		reply = strings.Join(cleaned, "。")
-
-		if reply == old {
-			break
-		}
-	}
-
-	return reply
 }
 func normalizeDaseiReply(reply string) string {
 	slog.Info("Dasei normalize CALLED", slog.String("reply", reply))
@@ -2206,73 +2208,90 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	originalText = strings.TrimSpace(originalText)
 
 	if reply == "" {
-		return ""
-	}
-
-	const minLength = 50
-	const maxLength = 149
-
-	length := len([]rune(reply))
-
-	if length > maxLength {
-		runes := []rune(reply)
-		return string(runes[:maxLength])
-	}
-
-	if length >= minLength {
 		return reply
 	}
 
-	// 元投稿から、短すぎる返信を具体化する。
-	tokens := tokenizeForPolish(originalText)
+	// 50〜140文字の中から今回の目標文字数をランダムに決める。
+	targetLength := rand.Intn(91) + 50
 
-	var usefulWord string
+	// すでに目標以上なら、そのまま返す。
+	length := len([]rune(reply))
 
-	for _, token := range tokens {
-		token = strings.TrimSpace(token)
+	if length >= targetLength {
+		if length > 140 {
+			runes := []rune(reply)
+			return string(runes[:140])
+		}
 
-		if len([]rune(token)) < 2 {
+		return reply
+	}
+
+	// 元の投稿から、返信に使えそうな具体的な言葉を探す。
+	usefulWord := ""
+
+	words := strings.FieldsFunc(originalText, func(r rune) bool {
+		return unicode.IsSpace(r) ||
+			strings.ContainsRune("、。！？!?「」『』（）()・,.", r)
+	})
+
+	for _, word := range words {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
 			continue
 		}
 
-		// 助詞や記号だけの語は除外。
-		if token == "こと" ||
-			token == "もの" ||
-			token == "ところ" ||
-			token == "感じ" ||
-			token == "今日" {
+		if len([]rune(word)) < 2 {
 			continue
 		}
 
-		usefulWord = token
+		usefulWord = word
 		break
 	}
 
+	// だせいらしい補足候補。
+	additions := []string{
+		" そういうところ、ちょっと気になるね。",
+		" まあ、そういう日もあるよね。",
+		" だせいもなんとなく分かる気がする。",
+		" こういう話って、意外と気になるんやね。",
+		" そう考えると、なかなか面白い話やね。",
+		" なんとなくそんな感じがするね。",
+		" だせいはこういう話、けっこう好きやで。",
+		" そういうことってあるよね、だせいもそう思う。",
+		" もう少し詳しく聞いてみたいところやね。",
+	}
 	if usefulWord != "" {
-		additions := []string{
-			usefulWord + "の話なんやね。だせいも、そういう話はちょっと気になるところやで。",
-			usefulWord + "だったんやね。そういうことがあると、だせいもなんとなく気になるな。",
-			usefulWord + "のことなんやね。詳しいことは分からんけど、そういう話も面白いね。",
+		additions = append(additions,
+			" "+usefulWord+"の話として見ると、ちょっと気になるね。",
+			" "+usefulWord+"については、そういう見方もありそうやね。",
+			" "+usefulWord+"のことを考えると、なかなか興味深いね。",
+		)
+	}
+
+	// 目標文字数に届くまで補足を追加する。
+	for length < targetLength {
+
+		addition := additions[rand.Intn(len(additions))]
+		candidate := reply + addition
+
+		candidateLength := len([]rune(candidate))
+
+		// 140文字を超えないようにする。
+		if candidateLength > 140 {
+			runes := []rune(candidate)
+			reply = string(runes[:140])
+			length = 140
+			break
 		}
 
-		for _, addition := range additions {
-			candidate := reply + " " + addition
-
-			if len([]rune(candidate)) >= minLength {
-				if len([]rune(candidate)) > maxLength {
-					continue
-				}
-
-				reply = candidate
-				break
-			}
-		}
+		reply = candidate
+		length = candidateLength
 	}
 
 	slog.Info("Dasei reply length normalized",
-		slog.Int("min", minLength),
-		slog.Int("max", maxLength),
-		slog.Int("length", len([]rune(reply))),
+		slog.Int("target", targetLength),
+		slog.Int("length", length),
 		slog.String("reply", reply),
 	)
 
@@ -2409,20 +2428,8 @@ func finalizeDaseiReply(originalText string, reply string) string {
 		return ""
 	}
 
-	// まず通常の校正を行う。
 	reply = polishDaseiReply(originalText, reply)
-
-	// 50〜149文字に整える。
-	reply = ensureDaseiReplyLength(reply, originalText)
-
-	// 文字数調整で追加された文章も含めて、
-	// 最後にもう一度校正する。
-	reply = polishDaseiReply(originalText, reply)
-
-	// 最後に重複した文章を整理する。
-	reply = cleanRepeatedDaseiReply(reply)
-
-	return reply
+	return ensureDaseiReplyLength(reply, originalText)
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
