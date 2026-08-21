@@ -2563,20 +2563,17 @@ func finalizeDaseiReply(originalText string, reply string) string {
 		return ""
 	}
 
-	// まず通常の校正を行う。
+	// 最初に検索情報を使って具体化する。
 	reply = polishDaseiReply(originalText, reply)
 
-	// 50〜149文字に整える。
+	// 50〜140文字に整える。
 	reply = ensureDaseiReplyLength(reply, originalText)
 
-	// 文字数調整で追加された文章も含めて、
-	// 最後にもう一度校正する。
-	reply = polishDaseiReply(originalText, reply)
-
-	// 最後に重複した文章を整理する。
+	// 最後は重複だけ整理する。
+	// ここで再度 polishDaseiReply を呼ばない。
 	reply = cleanRepeatedDaseiReply(reply)
 
-	return reply
+	return normalizeDaseiReply(reply)
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
