@@ -2264,7 +2264,7 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 
 	length := len([]rune(reply))
 
-	// すでに149文字を超えている場合は安全に切る。
+	// 149文字を超えている場合は安全に切る。
 	if length > maxLength {
 		runes := []rune(reply)
 		reply = string(runes[:maxLength])
@@ -2281,6 +2281,44 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	if length >= minLength {
 		return reply
 	}
+
+	// 短い返信だけ自然な補足を追加する。
+	additions := []string{
+		"そういうところ、ちょっと気になるね。",
+		"まあ、そういう日もあるよね。",
+		"そう考えると、なかなか面白い話やね。",
+		"なんとなくそんな感じがするね。",
+		"だせいはこういう話、けっこう好きやで。",
+	}
+	// 返信が50文字に届くまで補足する。
+	// 同じ補足を連続して使わない。
+	additionIndex := 0
+
+	for length < minLength {
+		addition := additions[additionIndex%len(additions)]
+		additionIndex++
+
+		candidate := reply + " " + addition
+		candidateLength := len([]rune(candidate))
+
+		if candidateLength > maxLength {
+			// 149文字を超える場合は安全に切る。
+			runes := []rune(candidate)
+			reply = string(runes[:maxLength])
+			length = maxLength
+			break
+		}
+
+		reply = candidate
+		length = candidateLength
+	}
+
+	slog.Info("Dasei reply length normalized",
+		slog.Int("min", minLength),
+		slog.Int("max", maxLength),
+		slog.Int("length", length),
+		slog.String("reply", reply),
+	)
 
 	return reply
 }
