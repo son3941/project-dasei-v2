@@ -150,7 +150,7 @@ func polishDaseiMutter(reply string) string {
 
 	webResult := wikipediaResult + "\n" + networkResult
 
-	slog.Info("Mutter reference search",
+	slog.Info("Mutter polish search",
 		slog.String("reply", reply),
 		slog.String("wikipedia", wikipediaResult),
 		slog.String("network", networkResult),
@@ -159,16 +159,23 @@ func polishDaseiMutter(reply string) string {
 	referenceWords := extractReferenceWords(webResult)
 	referenceSentences := extractReferenceSentences(webResult)
 
-	// 元の独り言と検索結果を照合して、
-	// 関連する情報が見つかった場合だけ具体化する。
-	reply = polishWithReference(
+	// 検索結果に関連する情報がある場合だけ、
+	// 下書きを具体化する。
+	polished := polishWithReference(
 		reply,
 		reply,
 		referenceWords,
 		referenceSentences,
 	)
 
-	reply = checkReferenceSentences(reply, referenceSentences)
+	if polished != "" {
+		reply = polished
+	}
+
+	reply = checkReferenceSentences(
+		reply,
+		referenceSentences,
+	)
 
 	return normalizeDaseiReply(reply)
 }
@@ -1835,11 +1842,16 @@ func expandShortDaseiReply(reply string, originalText string, referenceWords []s
 	return strings.TrimSpace(reply)
 }
 func polishWithReference(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
+	reply = strings.TrimSpace(reply)
+	originalText = strings.TrimSpace(originalText)
+
 	if reply == "" {
-		return reply
+		return ""
 	}
 
+	// 検索結果から、元の文章に関連する文章を探す。
 	originalTokens := tokenizeForPolish(originalText)
+
 	if len(originalTokens) == 0 {
 		return reply
 	}
@@ -1849,16 +1861,21 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 
 	for _, sentence := range referenceSentences {
 		sentence = strings.TrimSpace(sentence)
+
 		if sentence == "" {
 			continue
 		}
 
 		sentenceTokens := tokenizeForPolish(sentence)
+
 		if len(sentenceTokens) == 0 {
 			continue
 		}
 
-		score := countRelevantCommonWords(originalTokens, sentenceTokens)
+		score := countRelevantCommonWords(
+			originalTokens,
+			sentenceTokens,
+		)
 
 		if score > bestScore {
 			bestScore = score
@@ -1866,27 +1883,29 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
-	if bestSentence == "" || bestScore < 2 {
-		slog.Info("Dasei polish skipped",
-			slog.String("reason", "no relevant reference"),
-			slog.Int("score", bestScore),
-			slog.String("reply", reply),
-		)
+	slog.Info("Dasei polish candidate",
+		slog.Int("score", bestScore),
+		slog.String("reply", reply),
+		slog.String("reference", bestSentence),
+	)
+
+	// 関連する検索結果がなければ、
+	// 元のだせい文章をそのまま返す。
+	if bestSentence == "" || bestScore < 1 {
 		return reply
 	}
 
-	slog.Info("Dasei polish reference selected",
-		slog.Int("score", bestScore),
-		slog.String("original", originalText),
-		slog.String("before", reply),
-		slog.String("reference", bestSentence),
-	)
-	usefulWords := extractUsefulReferenceWords(referenceWords)
+	referenceWords = extractUsefulReferenceWords(referenceWords)
 
+	if len(referenceWords) == 0 {
+		return reply
+	}
+	// 元の文章に含まれている検索語を確認する。
 	var matchedWords []string
 
-	for _, word := range usefulWords {
+	for _, word := range referenceWords {
 		word = strings.TrimSpace(word)
+
 		if word == "" {
 			continue
 		}
@@ -1899,6 +1918,8 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
+	// 元の文章と検索結果の間に共通する語がなければ、
+	// 無理に文章を変更しない。
 	if len(matchedWords) == 0 {
 		slog.Info("Dasei polish skipped",
 			slog.String("reason", "no matched reference words"),
@@ -1907,37 +1928,50 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		return reply
 	}
 
-	for _, word := range matchedWords {
-		word = strings.TrimSpace(word)
+	// 検索結果から得た関連語を使って、
+	// 元のだせい文章を少し具体化する。
+	//
+	// 固定テンプレを毎回付けるのではなく、
+	// 検索結果から得た語をランダムに選ぶ。
+	word := matchedWords[rand.Intn(len(matchedWords))]
 
-		if word == "" || strings.Contains(reply, word) {
-			continue
-		}
+	if word == "" || strings.Contains(reply, word) {
+		return reply
+	}
 
-		candidates := []string{
-			reply + " " + word + "の話なんやね。",
-			reply + " " + word + "についての話なんやね。",
-			reply + " " + word + "ってところが気になるね。",
-		}
-		for _, candidate := range candidates {
-			candidate = strings.TrimSpace(candidate)
+	candidates := []string{
+		reply + " " + word + "も関係してるんやね。",
+		reply + " " + word + "っていうのもあるんやね。",
+		reply + " " + word + "のことも少し気になるな。",
+		reply + " " + word + "って聞くと、なんとなく分かる気がするで。",
+	}
 
-			length := len([]rune(candidate))
+	var valid []string
 
-			if length >= 50 && length <= 140 {
-				slog.Info("Dasei polish applied",
-					slog.String("before", reply),
-					slog.String("after", candidate),
-					slog.String("referenceWord", word),
-				)
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
 
-				reply = candidate
-				return normalizeDaseiReply(reply)
-			}
+		length := len([]rune(candidate))
+
+		if length >= 20 && length <= 140 {
+			valid = append(valid, candidate)
 		}
 	}
 
-	return normalizeDaseiReply(reply)
+	if len(valid) == 0 {
+		return reply
+	}
+
+	result := valid[rand.Intn(len(valid))]
+
+	slog.Info("Dasei polish applied",
+		slog.String("before", reply),
+		slog.String("after", result),
+		slog.String("referenceWord", word),
+		slog.String("referenceSentence", bestSentence),
+	)
+
+	return result
 }
 func countRelevantCommonWords(a []string, b []string) int {
 	stopWords := map[string]bool{
@@ -2739,14 +2773,16 @@ func applyNicknames(text string) string {
 	return text
 }
 func createMutter(text string) string {
-	// 10%は何も言わない
+	// 30%は中二病
 	if rand.Intn(100) < 30 {
 		return decorateMutter(createChuunibyou())
 	}
-	if rand.Intn(100) < 80 && len(memories) > 0 {
+
+	if len(memories) > 0 {
 		memoryMu.RLock()
 
 		values := make([]string, 0, len(memories))
+
 		for name, m := range memories {
 			nicknameMu.RLock()
 			_, isOriginalName := nicknames[name]
@@ -2756,28 +2792,33 @@ func createMutter(text string) string {
 				continue
 			}
 
-			values = append(values, m.Value)
+			value := strings.TrimSpace(m.Value)
+
+			if value == "" {
+				continue
+			}
+
+			values = append(values, value)
 		}
 
 		memoryMu.RUnlock()
 
 		if len(values) > 0 {
-			connectors := []string{"は", "が", "も", "って"}
+			material := values[rand.Intn(len(values))]
 
-			first := values[rand.Intn(len(values))]
+			draft := generateDaseiDraftFromReference(material)
 
-			if len(values) == 1 {
-				return addEmoji(applyNicknames(first))
+			if draft != "" {
+				return decorateMutter(
+					applyNicknames(draft),
+				)
 			}
-			second := values[rand.Intn(len(values))]
 
-			reply := addEmoji(
-				first +
-					connectors[rand.Intn(len(connectors))] +
-					second,
+			// 検索結果から生成できなかった場合は、
+			// 従来のランダム生成へ戻す。
+			return decorateMutter(
+				applyNicknames(material),
 			)
-
-			return decorateMutter(applyNicknames(reply))
 		}
 	}
 
@@ -2789,8 +2830,86 @@ func createMutter(text string) string {
 	}
 
 	return decorateMutter(
-		applyNicknames(mutters[rand.Intn(len(mutters))]),
+		applyNicknames(
+			mutters[rand.Intn(len(mutters))],
+		),
 	)
+}
+func generateDaseiDraftFromReference(material string) string {
+	material = strings.TrimSpace(material)
+
+	if material == "" {
+		return ""
+	}
+
+	wikipediaResult := searchWikipedia(material)
+	networkResult := searchWeb(material)
+
+	webResult := wikipediaResult + "\n" + networkResult
+
+	slog.Info("Dasei draft reference search",
+		slog.String("material", material),
+		slog.String("wikipedia", wikipediaResult),
+		slog.String("network", networkResult),
+	)
+
+	referenceWords := extractReferenceWords(webResult)
+	referenceSentences := extractReferenceSentences(webResult)
+
+	var candidates []string
+
+	// 検索結果から拾った単語を使う
+	usefulWords := extractUsefulReferenceWords(referenceWords)
+
+	for _, word := range usefulWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" || word == material {
+			continue
+		}
+
+		candidates = append(candidates, word)
+	}
+
+	// 検索結果から拾った文章も候補にする
+	for _, sentence := range referenceSentences {
+		sentence = strings.TrimSpace(sentence)
+
+		if sentence == "" {
+			continue
+		}
+
+		candidates = append(candidates, sentence)
+	}
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	first := candidates[rand.Intn(len(candidates))]
+
+	// 単語・文章をランダムに組み合わせて、
+	// あえて少し雑な「だせいの下書き」を作る。
+	draftTemplates := []string{
+		material + "って" + first + "なんやね。",
+		material + "と" + first + "って、なんか繋がってる感じするな。",
+		first + "って聞くと、だせいは" + material + "を思い出すで。",
+		material + "の話なんやけど、" + first + "ってのも気になるな。",
+		material + "といえば" + first + "なんかな。だせいにはまだよく分からんけど。",
+	}
+
+	draft := draftTemplates[rand.Intn(len(draftTemplates))]
+
+	if len([]rune(draft)) > 140 {
+		draft = string([]rune(draft)[:140])
+	}
+
+	slog.Info("Dasei draft generated",
+		slog.String("material", material),
+		slog.String("draft", draft),
+	)
+
+	return draft
 }
 func createChuunibyou() string {
 	templates := []string{
