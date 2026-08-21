@@ -1345,6 +1345,25 @@ func generateNaturalReply(text string) string {
 		"それは気になるね",
 	)
 }
+func generateRandomDaseiDraft(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	candidates := []string{
+		"なんとなくそういう話って気になるんよね。だせいは詳しいことまでは分からんけど、こういう話を聞いてると、もう少しだけ知りたくなってくるかな。",
+		"そういう話を聞くと、だせいもいろいろ考えてしまうところやで。理由はうまく説明できないけど、なんとなく気になるものってあるよね。",
+		"なるほど、そういう感じなんやね。だせいはこういう話を聞くと、つい別のことまで気になってしまうんよ。なんとなく面白いところやと思う。",
+		"そうなんやね。だせいにはまだよく分からないところもあるけど、そういう話を聞いてると、どういうことなのか少しずつ気になってくるかな。",
+		"それはちょっと気になる話やね。だせいも最初はなんとなく聞いてるだけなんやけど、話を聞いてるうちに、もう少し詳しく知りたくなってくるんよ。",
+	}
+
+	reply := candidates[rand.Intn(len(candidates))]
+
+	return reply
+}
 func generateReplyWithWebCheck(text string) string {
 	// まず、現在のだせいの返事を作る
 	reply := generateNaturalReply(text)
@@ -2262,86 +2281,16 @@ func addNaturalDaseiPunctuation(reply string) string {
 }
 func ensureDaseiReplyLength(reply string, originalText string) string {
 	reply = strings.TrimSpace(reply)
-	originalText = strings.TrimSpace(originalText)
 
 	if reply == "" {
 		return ""
 	}
 
-	const minLength = 50
-	const maxLength = 149
+	runes := []rune(reply)
 
-	length := len([]rune(reply))
-
-	if length > maxLength {
-		runes := []rune(reply)
-		return string(runes[:maxLength])
+	if len(runes) > 140 {
+		return string(runes[:140])
 	}
-
-	if length >= minLength {
-		return reply
-	}
-
-	// 元投稿から、短すぎる返信を具体化する。
-	tokens := tokenizeForPolish(originalText)
-
-	var usefulWord string
-
-	for _, token := range tokens {
-		token = strings.TrimSpace(token)
-
-		if len([]rune(token)) < 2 {
-			continue
-		}
-
-		// 助詞や記号だけの語は除外。
-		if token == "こと" ||
-			token == "もの" ||
-			token == "ところ" ||
-			token == "感じ" ||
-			token == "今日" {
-			continue
-		}
-
-		usefulWord = token
-		break
-	}
-
-	if usefulWord != "" {
-		additions := []string{
-			usefulWord + "の話なんやね。だせいも、そういう話はちょっと気になるところやで。",
-			usefulWord + "だったんやね。そういうことがあると、だせいもなんとなく気になるな。",
-			usefulWord + "のことなんやね。詳しいことは分からんけど、そういう話も面白いね。",
-		}
-
-		for _, addition := range additions {
-			candidate := reply + " " + addition
-
-			if len([]rune(candidate)) >= minLength &&
-				len([]rune(candidate)) <= maxLength {
-				reply = candidate
-				break
-			}
-		}
-	}
-
-	// 元投稿から具体的な語を取れなかった場合でも、
-	// 短すぎる返信を自然に50文字以上へ補足する。
-	if len([]rune(reply)) < minLength {
-		addition := "そういう話、だせいも少し気になるところやで。なんとなくそんな感じもするし、もう少し聞いてみたいかな。"
-
-		candidate := reply + " " + addition
-
-		if len([]rune(candidate)) <= maxLength {
-			reply = candidate
-		}
-	}
-	slog.Info("Dasei reply length normalized",
-		slog.Int("min", minLength),
-		slog.Int("max", maxLength),
-		slog.Int("length", len([]rune(reply))),
-		slog.String("reply", reply),
-	)
 
 	return reply
 }
@@ -2463,7 +2412,7 @@ func createReply(text string) string {
 		}
 	}
 	// 自然な日本語で返信
-	reply = generateNaturalReply(text)
+	reply = generateRandomDaseiDraft(text)
 
 	if reply != "" {
 		return finalizeDaseiReply(text, reply)
