@@ -2208,21 +2208,29 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	originalText = strings.TrimSpace(originalText)
 
 	if reply == "" {
+		return ""
+	}
+
+	const minLength = 50
+	const maxLength = 149
+
+	length := len([]rune(reply))
+
+	// すでに149文字を超えている場合は安全に切る。
+	if length > maxLength {
+		runes := []rune(reply)
+		reply = string(runes[:maxLength])
+
+		slog.Info("Dasei reply truncated",
+			slog.Int("original_length", length),
+			slog.Int("length", maxLength),
+		)
+
 		return reply
 	}
 
-	// 50〜140文字の中から今回の目標文字数をランダムに決める。
-	targetLength := rand.Intn(91) + 50
-
-	// すでに目標以上なら、そのまま返す。
-	length := len([]rune(reply))
-
-	if length >= targetLength {
-		if length > 140 {
-			runes := []rune(reply)
-			return string(runes[:140])
-		}
-
+	// すでに50〜149文字なら、そのまま返す。
+	if length >= minLength {
 		return reply
 	}
 
@@ -2231,7 +2239,10 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 
 	words := strings.FieldsFunc(originalText, func(r rune) bool {
 		return unicode.IsSpace(r) ||
-			strings.ContainsRune("、。！？!?「」『』（）()・,.", r)
+			strings.ContainsRune(
+				"、。！？!?「」『』（）()・,.",
+				r,
+			)
 	})
 
 	for _, word := range words {
@@ -2249,40 +2260,36 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 		break
 	}
 
-	// だせいらしい補足候補。
 	additions := []string{
-		" そういうところ、ちょっと気になるね。",
-		" まあ、そういう日もあるよね。",
-		" だせいもなんとなく分かる気がする。",
-		" こういう話って、意外と気になるんやね。",
-		" そう考えると、なかなか面白い話やね。",
-		" なんとなくそんな感じがするね。",
-		" だせいはこういう話、けっこう好きやで。",
-		" そういうことってあるよね、だせいもそう思う。",
-		" もう少し詳しく聞いてみたいところやね。",
+		"そういうところ、ちょっと気になるね。",
+		"まあ、そういう日もあるよね。",
+		"だせいもなんとなく分かる気がする。",
+		"こういう話って、意外と気になるんやね。",
+		"そう考えると、なかなか面白い話やね。",
+		"なんとなくそんな感じがするね。",
+		"だせいはこういう話、けっこう好きやで。",
+		"そういうことってあるよね、だせいもそう思う。",
+		"もう少し詳しく聞いてみたいところやね。",
 	}
 	if usefulWord != "" {
 		additions = append(additions,
-			" "+usefulWord+"の話として見ると、ちょっと気になるね。",
-			" "+usefulWord+"については、そういう見方もありそうやね。",
-			" "+usefulWord+"のことを考えると、なかなか興味深いね。",
+			usefulWord+"の話として見ると、ちょっと気になるね。",
+			usefulWord+"については、そういう見方もありそうやね。",
+			usefulWord+"のことを考えると、なかなか興味深いね。",
 		)
 	}
 
-	// 目標文字数に届くまで補足を追加する。
-	for length < targetLength {
-
+	// 50文字に届くまで補足する。
+	// 149文字を超える追加は採用せず、
+	// 追加できない場合はそこで終了する。
+	for length < minLength {
 		addition := additions[rand.Intn(len(additions))]
-		candidate := reply + addition
+		candidate := reply + " " + addition
 
 		candidateLength := len([]rune(candidate))
 
-		// 140文字を超えないようにする。
-		if candidateLength > 140 {
-			runes := []rune(candidate)
-			reply = string(runes[:140])
-			length = 140
-			break
+		if candidateLength > maxLength {
+			continue
 		}
 
 		reply = candidate
@@ -2290,7 +2297,8 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	}
 
 	slog.Info("Dasei reply length normalized",
-		slog.Int("target", targetLength),
+		slog.Int("min", minLength),
+		slog.Int("max", maxLength),
 		slog.Int("length", length),
 		slog.String("reply", reply),
 	)
@@ -2428,8 +2436,17 @@ func finalizeDaseiReply(originalText string, reply string) string {
 		return ""
 	}
 
+	// まず通常の校正を行う。
 	reply = polishDaseiReply(originalText, reply)
-	return ensureDaseiReplyLength(reply, originalText)
+
+	// 50〜149文字に整える。
+	reply = ensureDaseiReplyLength(reply, originalText)
+
+	// 文字数調整で追加された文章も含めて、
+	// 最後にもう一度校正する。
+	reply = polishDaseiReply(originalText, reply)
+
+	return reply
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
