@@ -168,25 +168,6 @@ func polishDaseiMutter(reply string) string {
 		referenceSentences,
 	)
 
-	// 独り言は短いまま終わらせない。
-	if len([]rune(reply)) < 50 {
-		additions := []string{
-			"そういう話、だせいも少し気になるところやで。なんとなくそんな感じもするし、もう少し聞いてみたいかな。",
-			"だせいもそういうのはちょっと気になるな。詳しいことは分からんけど、なんとなくそういう感じもするで。",
-			"こういう話って、だせいもなんとなく気になってしまうんよね。理由はうまく説明できないけど、そういうこともあるよね。",
-		}
-
-		for _, addition := range additions {
-			candidate := strings.TrimSpace(reply + " " + addition)
-
-			if len([]rune(candidate)) >= 50 &&
-				len([]rune(candidate)) <= 140 {
-				reply = candidate
-				break
-			}
-		}
-	}
-
 	reply = checkReferenceSentences(reply, referenceSentences)
 
 	return normalizeDaseiReply(reply)
@@ -2835,8 +2816,6 @@ func createChuunibyou() string {
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])
 	}
-
-	result = finalizeDaseiReply(result, result)
 
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])
