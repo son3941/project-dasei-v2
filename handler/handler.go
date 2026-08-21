@@ -1768,24 +1768,20 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	}
 
 	originalTokens := tokenizeForPolish(originalText)
-
 	if len(originalTokens) == 0 {
 		return reply
 	}
 
-	// 検索結果から、元の返信と最も関連性の高い文章を探す
 	bestSentence := ""
 	bestScore := 0
 
 	for _, sentence := range referenceSentences {
 		sentence = strings.TrimSpace(sentence)
-
 		if sentence == "" {
 			continue
 		}
 
 		sentenceTokens := tokenizeForPolish(sentence)
-
 		if len(sentenceTokens) == 0 {
 			continue
 		}
@@ -1798,49 +1794,79 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
-	// 関連する検索結果がなければ、元の返信をそのまま返す
 	if bestSentence == "" || bestScore < 2 {
-		slog.Info("Wikipedia polish skipped",
-			slog.String("reply", reply),
+		slog.Info("Dasei polish skipped",
+			slog.String("reason", "no relevant reference"),
 			slog.Int("score", bestScore),
+			slog.String("reply", reply),
 		)
 		return reply
 	}
 
-	// 検索結果との関連性を記録
-	slog.Info("Wikipedia polish reference selected",
-		slog.String("reply", reply),
+	slog.Info("Dasei polish reference selected",
 		slog.Int("score", bestScore),
+		slog.String("original", originalText),
+		slog.String("before", reply),
 		slog.String("reference", bestSentence),
 	)
 	usefulWords := extractUsefulReferenceWords(referenceWords)
 
-	slog.Info("Wikipedia useful reference words",
-		slog.String("reply", reply),
-		slog.Int("count", len(usefulWords)),
-		slog.Any("words", usefulWords),
-	)
-	reply = applyReferenceWords(reply, usefulWords)
-	enrichedReply := enrichDaseiReply(
-		reply,
-		originalText,
-		usefulWords,
-		referenceSentences,
-	)
+	var matchedWords []string
 
-	if enrichedReply != reply {
-		slog.Info("Wikipedia reply enriched",
-			slog.String("before", reply),
-			slog.String("after", enrichedReply),
-		)
+	for _, word := range usefulWords {
+		word = strings.TrimSpace(word)
+		if word == "" {
+			continue
+		}
 
-		reply = enrichedReply
+		for _, token := range originalTokens {
+			if token == word {
+				matchedWords = append(matchedWords, word)
+				break
+			}
+		}
 	}
 
-	// 最後に空白・句読点などを整理する。
+	if len(matchedWords) == 0 {
+		slog.Info("Dasei polish skipped",
+			slog.String("reason", "no matched reference words"),
+			slog.String("reply", reply),
+		)
+		return reply
+	}
+
+	for _, word := range matchedWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" || strings.Contains(reply, word) {
+			continue
+		}
+
+		candidates := []string{
+			reply + " " + word + "の話なんやね。",
+			reply + " " + word + "についての話なんやね。",
+			reply + " " + word + "ってところが気になるね。",
+		}
+		for _, candidate := range candidates {
+			candidate = strings.TrimSpace(candidate)
+
+			length := len([]rune(candidate))
+
+			if length >= 50 && length <= 140 {
+				slog.Info("Dasei polish applied",
+					slog.String("before", reply),
+					slog.String("after", candidate),
+					slog.String("referenceWord", word),
+				)
+
+				reply = candidate
+				return normalizeDaseiReply(reply)
+			}
+		}
+	}
+
 	return normalizeDaseiReply(reply)
 }
-
 func countRelevantCommonWords(a []string, b []string) int {
 	stopWords := map[string]bool{
 		"は":  true,
