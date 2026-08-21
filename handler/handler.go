@@ -1928,32 +1928,77 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	}
 	var candidates []string
 
-	// 元の返信を土台にしつつ、
-	// 検索結果の文章から得た情報を使って
-	// 返信全体を自然に組み直す。
-	if bestSentence != "" {
-		candidates = append(candidates,
-			bestSentence+"。"+reply,
-		)
+	// 元の返信に残っている定型的な反応を取り除く。
+	// 検索結果を使った具体化だけを残し、同じ文章構造が
+	// 毎回繰り返されるのを防ぐ。
+	baseReply := reply
 
-		candidates = append(candidates,
-			reply+" "+bestSentence+"。",
-		)
+	templateParts := []string{
+		"そうなんやね。",
+		"そうなんやね",
+		"だせいにはまだよく分からないところもあるけど、",
+		"だせいにはまだよく分からないところもあるけど",
+		"そういう話を聞いてると、",
+		"そういう話を聞いてると",
+		"どういうことなのか少しずつ気になってくるかな。",
+		"どういうことなのか少しずつ気になってくるかな",
+		"こういう話って、調べてみると意外といろいろあるんやね。",
+		"だせいも少し気になってきた。",
 	}
 
+	for _, part := range templateParts {
+		baseReply = strings.ReplaceAll(baseReply, part, "")
+	}
+
+	baseReply = strings.TrimSpace(baseReply)
+
+	if baseReply == "" {
+		baseReply = reply
+	}
+
+	// 検索結果を使いながら、毎回違う文章構造を作る。
 	if len(matchedWords) >= 1 {
 		candidates = append(candidates,
-			matchedWords[0]+"について調べてみると、"+bestSentence+"。"+reply,
+			baseReply+" "+matchedWords[0]+"って、"+bestSentence+"。"+
+				"なるほど、そういうことなんやね。",
+		)
+
+		candidates = append(candidates,
+			baseReply+" "+bestSentence+"。"+
+				matchedWords[0]+"のこと、ちょっと分かった気がする。",
+		)
+
+		candidates = append(candidates,
+			matchedWords[0]+"って気になってたけど、"+
+				bestSentence+"。"+
+				baseReply,
 		)
 	}
 
 	if len(matchedWords) >= 2 {
 		candidates = append(candidates,
-			matchedWords[0]+"と"+matchedWords[1]+"について見ると、"+bestSentence+"。"+reply,
+			baseReply+" "+matchedWords[0]+"と"+matchedWords[1]+"って、"+
+				bestSentence+"。"+
+				"こういう関係なんやね。",
+		)
+
+		candidates = append(candidates,
+			matchedWords[0]+"の話から調べてみたら、"+
+				bestSentence+"。"+
+				matchedWords[1]+"も関係してくるんやね。",
 		)
 	}
-	var validCandidates []string
 
+	candidates = append(candidates,
+		baseReply+" "+bestSentence+"。"+
+			"知らんかったなあ。",
+	)
+
+	candidates = append(candidates,
+		baseReply+" "+bestSentence+"。"+
+			"こういうの、知るとちょっと面白いな。",
+	)
+	var validCandidates []string
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
 
