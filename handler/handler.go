@@ -159,12 +159,33 @@ func polishDaseiMutter(reply string) string {
 	referenceWords := extractReferenceWords(webResult)
 	referenceSentences := extractReferenceSentences(webResult)
 
+	// 元の独り言と検索結果を照合して、
+	// 関連する情報が見つかった場合だけ具体化する。
 	reply = polishWithReference(
 		reply,
 		reply,
 		referenceWords,
 		referenceSentences,
 	)
+
+	// 独り言は短いまま終わらせない。
+	if len([]rune(reply)) < 50 {
+		additions := []string{
+			"そういう話、だせいも少し気になるところやで。なんとなくそんな感じもするし、もう少し聞いてみたいかな。",
+			"だせいもそういうのはちょっと気になるな。詳しいことは分からんけど、なんとなくそういう感じもするで。",
+			"こういう話って、だせいもなんとなく気になってしまうんよね。理由はうまく説明できないけど、そういうこともあるよね。",
+		}
+
+		for _, addition := range additions {
+			candidate := strings.TrimSpace(reply + " " + addition)
+
+			if len([]rune(candidate)) >= 50 &&
+				len([]rune(candidate)) <= 140 {
+				reply = candidate
+				break
+			}
+		}
+	}
 
 	reply = checkReferenceSentences(reply, referenceSentences)
 
