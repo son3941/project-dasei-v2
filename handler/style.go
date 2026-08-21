@@ -231,7 +231,7 @@ func ojisanTranslate(text string) string {
 
 	templates := []string{
 
-		`%チャン😊💕
+		`やっほ〜😊💕
 
 %s
 
