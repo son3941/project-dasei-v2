@@ -1400,28 +1400,46 @@ func generateRandomDaseiDraft(text string) string {
 	return reply
 }
 func generateReplyWithWebCheck(text string) string {
-	// まず、現在のだせいの返事を作る
+	// まず、だせいの雑な返事を作る
 	reply := generateNaturalReply(text)
 
 	if reply == "" {
 		return ""
 	}
 
-	// Wikipedia検索
-	webResult := searchWikipedia(text)
+	// Wikipedia＋ネット情報を取得
+	wikipediaResult := searchWikipedia(text)
+	networkResult := searchWeb(text)
 
-	if webResult != "" {
-		slog.Info("Wikipedia result",
-			slog.String("text", text),
-			slog.String("result", webResult),
-		)
+	webResult := wikipediaResult + "\n" + networkResult
 
-	}
+	slog.Info("Reply reference search",
+		slog.String("original", text),
+		slog.String("reply", reply),
+		slog.String("wikipedia", wikipediaResult),
+		slog.String("network", networkResult),
+	)
 
-	return reply
+	// 検索結果から校正に使える情報を抽出
+	referenceWords := extractReferenceWords(webResult)
+	referenceSentences := extractReferenceSentences(webResult)
+
+	// ここで初めて、だせいの雑な返信を校正する
+	reply = polishWithReference(
+		reply,
+		text,
+		referenceWords,
+		referenceSentences,
+	)
+
+	// 最終的な文章整理
+	reply = checkReferenceSentences(
+		reply,
+		referenceSentences,
+	)
+
+	return normalizeDaseiReply(reply)
 }
-
-// CreateReplyWithWebCheck は外部から呼び出すための返信生成入口
 func CreateReplyWithWebCheck(text string) string {
 	return generateReplyWithWebCheck(text)
 }
