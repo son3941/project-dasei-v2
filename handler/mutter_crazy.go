@@ -10,98 +10,61 @@ func crazyWords() []string {
 		"あ！！！！",
 		"ああ！！！！",
 		"おお！！！！",
-		"うおおお",
+		"うおおお！！！！",
 		"えーとえーと",
 		"？？？？",
 		"なの！",
-		"はい",
-		"わかる",
-		"たぶん",
-		"も",
-		"もそう",
-		"ふむ",
-		"んーー",
+		"はい！！！！",
+		"わかる！！！！",
+		"たぶん！！！！",
+		"もそう！！",
+		"ふむ……",
+		"んーーー",
 		"！！！！！",
 		"………",
 		"うーん",
 		"ふふ",
-		"だせいも",
+		"だせいもそう",
 		"ごろごろ",
 		"もぺ",
-		"ほんと？",
+		"ほんと！？",
 	}
 }
-func createCrazyMutter(post string) string {
 
-	// 40%だけ荒ぶる
+func createCrazyMutter(post string) string {
 	if rand.Intn(100) >= 40 {
 		return post
 	}
 
+	post = strings.TrimSpace(post)
+
+	if post == "" {
+		return ""
+	}
+
 	var result []string
-	length := 0
-	lastWord := ""
+
 	result = append(result, post)
-	length += len([]rune(post))
+	// 覚えている言葉を素材として混ぜる。
+	if rand.Intn(100) < 60 {
+		memoryPost := generateMemoryPost()
 
-	for length < 140 {
-
-		switch rand.Intn(10) {
-
-		case 0, 1, 2, 3:
-			post := generateMemoryPost()
-			if post != "" {
-				result = append(result, randomPhrase(post))
-			}
-
-		case 4, 5:
-			name := randomMember()
-			if name != "" {
-				result = append(result, randomPhrase(name))
-			}
-
-		default:
-			words := crazyWords()
-			result = append(result, randomPhrase(words[rand.Intn(len(words))]))
-		}
-		last := result[len(result)-1]
-
-		if last == lastWord {
-			continue
-		}
-
-		lastWord = last
-		length += len([]rune(last))
-	}
-
-	// 1行に2～4フレーズ入れて4～5行くらいにまとめる
-	var lines []string
-	line := ""
-
-	for _, word := range result {
-
-		if line == "" {
-			line = word
-		} else {
-			line += " " + word
-		}
-
-		// 2～4フレーズごとに改行
-		if rand.Intn(3)+2 <= len(strings.Fields(line)) {
-			lines = append(lines, line)
-			line = ""
+		if memoryPost != "" {
+			result = append(result,
+				strings.TrimSpace(memoryPost),
+			)
 		}
 	}
 
-	if line != "" {
-		lines = append(lines, line)
-	}
+	// 荒ぶる短い要素を少量だけ混ぜる。
+	if rand.Intn(100) < 70 {
+		words := crazyWords()
 
-	// 行数が多すぎる場合は最後の行にまとめる
-	for len(lines) > 5 {
-		lines[len(lines)-2] += " " + lines[len(lines)-1]
-		lines = lines[:len(lines)-1]
+		result = append(result,
+			words[rand.Intn(len(words))],
+		)
 	}
+	text := strings.TrimSpace(strings.Join(result, " "))
 
-	return finalizeDaseiReply(strings.Join(lines, "\n"), strings.Join(lines, "\n"))
+	return finalizeDaseiReply(text, text)
 }
