@@ -2873,6 +2873,65 @@ func applyNicknames(text string) string {
 
 	return text
 }
+func ensureDaseiPostLength(post string, fragments []string) string {
+	post = strings.TrimSpace(post)
+
+	if post == "" {
+		return ""
+	}
+
+	// 15%は短文をそのまま許容。
+	if rand.Intn(100) < 15 {
+		if len([]rune(post)) <= 49 {
+			return post
+		}
+	}
+
+	runes := []rune(post)
+
+	// 140文字を超えていたら切る。
+	if len(runes) > 140 {
+		return string(runes[:140])
+	}
+
+	// 50文字以上なら、そのまま。
+	if len(runes) >= 50 {
+		return post
+	}
+	if len(fragments) == 0 {
+		return post
+	}
+
+	result := post
+	used := make(map[string]bool)
+
+	for _, fragment := range fragments {
+		fragment = strings.TrimSpace(fragment)
+
+		if fragment == "" {
+			continue
+		}
+
+		if used[fragment] {
+			continue
+		}
+
+		next := result + " " + fragment
+
+		if len([]rune(next)) > 140 {
+			continue
+		}
+
+		result = next
+		used[fragment] = true
+
+		if len([]rune(result)) >= 50 {
+			break
+		}
+	}
+
+	return strings.TrimSpace(result)
+}
 func createMutter(text string) string {
 	// 30%は中二病
 	if rand.Intn(100) < 30 {
@@ -3071,9 +3130,7 @@ func generateDaseiDraftFromReference(material string) string {
 		return ""
 	}
 
-	if len([]rune(draft)) > 140 {
-		draft = string([]rune(draft)[:140])
-	}
+	draft = ensureDaseiPostLength(draft, fragments)
 
 	slog.Info("Dasei draft generated",
 		slog.String("material", material),
