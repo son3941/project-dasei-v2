@@ -1483,104 +1483,29 @@ func checkReferenceSentences(reply string, referenceSentences []string) string {
 		return ""
 	}
 
-	// 連続した空白を整理
-	reply = strings.Join(strings.Fields(reply), " ")
-
-	// 句読点の重複を整理
-	for strings.Contains(reply, "。。") {
-		reply = strings.ReplaceAll(reply, "。。", "。")
-	}
-
-	for strings.Contains(reply, "！！") {
-		reply = strings.ReplaceAll(reply, "！！", "！")
-	}
-
-	for strings.Contains(reply, "？？") {
-		reply = strings.ReplaceAll(reply, "？？", "？")
-	}
-
-	// 同じ文が連続している場合は1回だけ残す。
-	parts := strings.Split(reply, "。")
-
-	var cleaned []string
-	var previous string
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-
-		if part == "" {
-			continue
-		}
-
-		if part == previous {
-			continue
-		}
-
-		cleaned = append(cleaned, part)
-		previous = part
-	}
-
-	reply = strings.Join(cleaned, "。")
-	if reply != "" && !strings.HasSuffix(reply, "。") &&
-		!strings.HasSuffix(reply, "！") &&
-		!strings.HasSuffix(reply, "？") {
-		reply += "。"
-	}
-
-	// 同じ定型的な短文が連続している場合だけ削る。
-	repeatedParts := []string{
-		"そうなんやね。",
-		"なるほどなあ。",
-		"そうなんやね。なるほどなあ。",
-		"なるほどなあ。そうなんやね。",
-	}
-
-	for _, part := range repeatedParts {
-		doublePart := part + part
-
-		for strings.Contains(reply, doublePart) {
-			reply = strings.ReplaceAll(reply, doublePart, part)
-		}
-	}
-
-	// 同じ長い文がそのまま2回出ている場合を除去。
-	sentences := strings.Split(reply, "。")
-
-	var result []string
-	seen := make(map[string]bool)
-	for _, sentence := range sentences {
+	// 検索結果の文章をそのまま使っている場合は、
+	// 元の文章を優先して残す。
+	for _, sentence := range referenceSentences {
 		sentence = strings.TrimSpace(sentence)
 
 		if sentence == "" {
 			continue
 		}
 
-		// 15文字以上の同一文だけ重複排除する。
-		if len([]rune(sentence)) >= 15 {
-			if seen[sentence] {
-				continue
-			}
+		// 長すぎる検索文そのものが返信に入っていたら除去する。
+		if len([]rune(sentence)) >= 30 &&
+			strings.Contains(reply, sentence) {
 
-			seen[sentence] = true
+			reply = strings.ReplaceAll(reply, sentence, "")
+			reply = strings.TrimSpace(reply)
+
+			slog.Info("Removed raw reference sentence",
+				slog.String("sentence", sentence),
+			)
 		}
-
-		result = append(result, sentence)
 	}
 
-	reply = strings.Join(result, "。")
-
-	if reply != "" &&
-		!strings.HasSuffix(reply, "。") &&
-		!strings.HasSuffix(reply, "！") &&
-		!strings.HasSuffix(reply, "？") {
-		reply += "。"
-	}
-
-	slog.Info("Dasei reference polish checked",
-		slog.String("reply", reply),
-	)
-
-	return strings.TrimSpace(reply)
+	return normalizeDaseiReply(reply)
 }
 func isFactCheckReply(originalText string, reply string) bool {
 	originalText = strings.TrimSpace(originalText)
@@ -1926,44 +1851,9 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	originalTokens := tokenizeForPolish(originalText)
 
 	if len(originalTokens) == 0 {
-		return reply
-	}
-
-	bestSentence := ""
-	bestScore := 0
-	for _, sentence := range referenceSentences {
-		sentence = strings.TrimSpace(sentence)
-
-		if sentence == "" {
-			continue
-		}
-
-		sentenceTokens := tokenizeForPolish(sentence)
-
-		if len(sentenceTokens) == 0 {
-			continue
-		}
-
-		score := countRelevantCommonWords(
-			originalTokens,
-			sentenceTokens,
-		)
-
-		if score > bestScore {
-			bestScore = score
-			bestSentence = sentence
-		}
-	}
-
-	if bestSentence == "" || bestScore < 1 {
-		slog.Info("Dasei polish skipped",
-			slog.String("reason", "no relevant reference"),
-			slog.Int("score", bestScore),
-			slog.String("reply", reply),
-		)
-
 		return normalizeDaseiReply(reply)
 	}
+
 	usefulWords := extractUsefulReferenceWords(referenceWords)
 
 	var matchedWords []string
@@ -1983,6 +1873,7 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		}
 	}
 
+	// 重複を除く
 	uniqueWords := make([]string, 0, len(matchedWords))
 	seen := make(map[string]bool)
 
@@ -2000,82 +1891,63 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	if len(matchedWords) > 3 {
 		matchedWords = matchedWords[:3]
 	}
-	var candidates []string
 
-	// 検索結果は、そのまま返信として使わず、
-	// だせいが話を膨らませるための材料として扱う。
 	baseReply := strings.TrimSpace(reply)
 
-	if baseReply == "" {
-		baseReply = "そうなんやね"
+	if len(matchedWords) == 0 {
+		return normalizeDaseiReply(baseReply)
 	}
+	// 検索結果の文章は使わず、
+	// 元の返信に拾った言葉を自然に織り込む。
+	var candidates []string
 
-	// 検索結果から得た情報を、だせいの言葉として
-	// 言い換える候補を作る。
 	if len(matchedWords) >= 1 {
-		word := matchedWords[0]
-
 		candidates = append(candidates,
-			baseReply+" "+word+"のことを調べてみたら、"+bestSentence+"。"+
-				"こういう話なんやね。",
-		)
-
-		candidates = append(candidates,
-			word+"って、"+bestSentence+"。"+
-				baseReply+"。こういうのはちょっと面白いな。",
-		)
-
-		candidates = append(candidates,
-			baseReply+" "+word+"について見てたら、"+
-				bestSentence+"。"+
-				"だせいもちょっと知らんかったな。",
+			baseReply+" "+matchedWords[0]+"のことも少し気になってきた。",
 		)
 	}
 
 	if len(matchedWords) >= 2 {
-		word1 := matchedWords[0]
-		word2 := matchedWords[1]
-
 		candidates = append(candidates,
-			baseReply+" "+word1+"と"+word2+"について見てみたら、"+
-				bestSentence+"。"+
-				"こういうつながりがあるんやね。",
+			baseReply+" "+matchedWords[0]+"と"+matchedWords[1]+"も関係してくるんやね。",
 		)
 	}
 
-	// 検索結果そのものを使う候補。
-	// ただし、説明文だけで終わらせず、だせいの反応を付ける。
-	candidates = append(candidates,
-		baseReply+" "+bestSentence+"。"+
-			"なんかこういうの、知るとちょっと面白いな。",
-	)
+	if len(matchedWords) >= 3 {
+		candidates = append(candidates,
+			baseReply+" "+matchedWords[0]+"だけじゃなくて、"+matchedWords[1]+"や"+matchedWords[2]+"まで出てくるんやね。",
+		)
+	}
 
-	candidates = append(candidates,
-		baseReply+" "+bestSentence+"。"+
-			"だせいはそこまで知らんかったわ。",
-	)
+	// 元の返信をそのまま残す候補も用意する。
+	candidates = append(candidates, baseReply)
+
 	var validCandidates []string
+
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
 
+		if candidate == "" {
+			continue
+		}
+
 		length := len([]rune(candidate))
 
-		if length >= 50 && length <= 140 {
+		if length <= 140 {
 			validCandidates = append(validCandidates, candidate)
 		}
 	}
 
 	if len(validCandidates) == 0 {
-		return normalizeDaseiReply(reply)
+		return normalizeDaseiReply(baseReply)
 	}
 
 	result := validCandidates[rand.Intn(len(validCandidates))]
 
-	slog.Info("Dasei polish applied",
-		slog.Int("score", bestScore),
+	slog.Info("Dasei reference polish applied",
+		slog.Int("matched_words", len(matchedWords)),
 		slog.String("before", reply),
 		slog.String("after", result),
-		slog.String("reference", bestSentence),
 	)
 
 	return normalizeDaseiReply(result)
@@ -2482,6 +2354,8 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 
 	runes := []rune(reply)
 
+	// 140文字を超えた場合だけ切る。
+	// 50文字未満だからといって水増しはしない。
 	if len(runes) > 140 {
 		return string(runes[:140])
 	}
@@ -2615,21 +2489,93 @@ func createReply(text string) string {
 	return finalizeDaseiReply(text, "そうなんだね")
 }
 func finalizeDaseiReply(originalText string, reply string) string {
+	reply = strings.TrimSpace(reply)
+
 	if reply == "" {
 		return ""
 	}
 
-	// 最初に検索情報を使って具体化する。
+	// まず検索結果から得た言葉を使って内容を具体化する。
+	// ここでは文章そのものを引用しない。
 	reply = polishDaseiReply(originalText, reply)
 
-	// 50〜140文字に整える。
-	reply = ensureDaseiReplyLength(reply, originalText)
-
-	// 最後は重複だけ整理する。
-	// ここで再度 polishDaseiReply を呼ばない。
+	// 重複した表現だけを整理する。
 	reply = cleanRepeatedDaseiReply(reply)
 
+	// 最終校正。
+	// ここでは内容を増やさず、日本語としての形だけを整える。
+	reply = polishDaseiJapanese(reply)
+
+	// 最後に文字数上限だけを適用する。
+	reply = ensureDaseiReplyLength(reply, originalText)
+
 	return normalizeDaseiReply(reply)
+}
+func polishDaseiJapanese(text string) string {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return ""
+	}
+
+	// 改行・空白を整理。
+	lines := strings.FieldsFunc(text, func(r rune) bool {
+		return r == '\n' || r == '\r'
+	})
+
+	var parts []string
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if line == "" {
+			continue
+		}
+
+		parts = append(parts, line)
+	}
+
+	text = strings.Join(parts, " ")
+
+	// 句読点まわりの余計な空白を整理。
+	text = strings.ReplaceAll(text, " 。", "。")
+	text = strings.ReplaceAll(text, " 、", "、")
+	text = strings.ReplaceAll(text, "！ ", "！")
+	text = strings.ReplaceAll(text, "？ ", "？")
+
+	// 同じ句読点が異常に連続する場合だけ整理。
+	text = strings.ReplaceAll(text, "。。", "。")
+	text = strings.ReplaceAll(text, "、、", "、")
+
+	// 文末記号の直後に別の文がくっついている場合、
+	// 最低限の空白を入れる。
+	text = strings.ReplaceAll(text, "。そう", "。 そう")
+	text = strings.ReplaceAll(text, "。なるほど", "。 なるほど")
+	text = strings.ReplaceAll(text, "。でも", "。 でも")
+	text = strings.ReplaceAll(text, "。ただ", "。 ただ")
+	text = strings.ReplaceAll(text, "。だから", "。 だから")
+
+	// 同じ短い反応が連続した場合だけ除去。
+	for {
+		old := text
+
+		text = strings.ReplaceAll(text, "そうなんやね。そうなんやね。", "そうなんやね。")
+		text = strings.ReplaceAll(text, "なるほど。なるほど。", "なるほど。")
+		text = strings.ReplaceAll(text, "知らんかった。知らんかった。", "知らんかった。")
+		text = strings.ReplaceAll(text, "へえ。へえ。", "へえ。")
+
+		if text == old {
+			break
+		}
+	}
+
+	// 文頭に不要な句読点が残った場合だけ除去。
+	text = strings.TrimLeft(text, " 、。")
+
+	// 文末の余計な空白を除去。
+	text = strings.TrimSpace(text)
+
+	return text
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
