@@ -2227,7 +2227,8 @@ func cleanRepeatedDaseiReply(reply string) string {
 		return ""
 	}
 
-	// 同じ文章が連続している場合、1回だけ残す。
+	// 同じ文章が連続している場合だけ、
+	// 後ろの重複を1回だけ削除する。
 	for {
 		old := reply
 
@@ -2239,27 +2240,38 @@ func cleanRepeatedDaseiReply(reply string) string {
 			break
 		}
 
-		cleaned := make([]string, 0, len(parts))
+		changed := false
 
-		for _, part := range parts {
+		var result strings.Builder
+
+		for i, part := range parts {
 			part = strings.TrimSpace(part)
 
 			if part == "" {
 				continue
 			}
 
-			if len(cleaned) > 0 && cleaned[len(cleaned)-1] == part {
-				continue
+			if i > 0 {
+				previous := strings.TrimSpace(parts[i-1])
+
+				if part == previous {
+					changed = true
+					continue
+				}
 			}
 
-			cleaned = append(cleaned, part)
+			if result.Len() > 0 {
+				result.WriteString("。")
+			}
+
+			result.WriteString(part)
 		}
 
-		if len(cleaned) == 0 {
+		if !changed {
 			break
 		}
 
-		reply = strings.Join(cleaned, "。")
+		reply = result.String()
 
 		if reply == old {
 			break
@@ -2270,53 +2282,18 @@ func cleanRepeatedDaseiReply(reply string) string {
 }
 func normalizeDaseiReply(reply string) string {
 	slog.Info("Dasei normalize CALLED", slog.String("reply", reply))
+
 	reply = strings.TrimSpace(reply)
 
 	if reply == "" {
 		return ""
 	}
 
-	// 連続する空白を整理
+	// 連続する空白を整理。
 	reply = strings.Join(strings.Fields(reply), " ")
 
-	// だせいの追加文が前の文章にくっついた場合、
-	// 文の区切りを入れて読みやすくする。
-	separators := []string{
-		"だせいは",
-		"だせいも",
-		"だせいが",
-		"だせいには",
-		"だせいにも",
-	}
-
-	for _, separator := range separators {
-		for {
-			index := strings.Index(reply, separator)
-
-			// 文頭ならそのまま
-			if index <= 0 {
-				break
-			}
-
-			// すでに区切られているなら何もしない
-			beforeText := reply[:index]
-
-			if strings.HasSuffix(beforeText, "。") ||
-				strings.HasSuffix(beforeText, "！") ||
-				strings.HasSuffix(beforeText, "？") ||
-				strings.HasSuffix(beforeText, "、") ||
-				strings.HasSuffix(beforeText, "\n") {
-				break
-			}
-
-			// 「だせい」の前に句点を入れる
-			reply = reply[:index] + "。" + reply[index:]
-
-			break
-		}
-	}
-
-	// 連続する句読点を整理
+	// 連続する句読点だけを整理。
+	// 「だせい」の前後に句点を強制的に追加することはしない。
 	for {
 		old := reply
 
@@ -2336,35 +2313,11 @@ func normalizeDaseiReply(reply string) string {
 }
 func addNaturalDaseiPunctuation(reply string) string {
 	slog.Info("PUNCTUATION BEFORE", slog.String("reply", reply))
+
 	reply = strings.TrimSpace(reply)
 
 	if reply == "" {
 		return reply
-	}
-
-	sentencePairs := []struct {
-		ending  string
-		starter string
-	}{
-		{"だろう", "特に"},
-		{"だろう", "なんとなく"},
-		{"だろう", "まあ"},
-		{"だよ", "だせい"},
-		{"だよ", "まあ"},
-		{"だよ", "なんとなく"},
-		{"だよ", "そういう"},
-		{"だよ", "こういう"},
-		{"するよ", "まあ"},
-		{"するよ", "なんとなく"},
-		{"よね", "なんとなく"},
-		{"よね", "まあ"},
-		{"ですよ", "まあ"},
-		{"ですね", "まあ"},
-	}
-	for _, pair := range sentencePairs {
-		from := pair.ending + pair.starter
-		to := pair.ending + "。" + pair.starter
-		reply = strings.Replace(reply, from, to, 1)
 	}
 
 	commaWords := []string{
@@ -2395,7 +2348,9 @@ func addNaturalDaseiPunctuation(reply string) string {
 			reply = reply[:end] + "、" + reply[end:]
 		}
 	}
+
 	slog.Info("PUNCTUATION AFTER", slog.String("reply", reply))
+
 	return reply
 }
 func ensureDaseiReplyLength(reply string, originalText string) string {
