@@ -2954,52 +2954,122 @@ func generateDaseiDraftFromReference(material string) string {
 		slog.String("network", networkResult),
 	)
 
+	// 検索結果から「言葉」だけを拾う。
+	// 文章そのものは使わない。
 	referenceWords := extractReferenceWords(webResult)
-	referenceSentences := extractReferenceSentences(webResult)
 
-	var candidates []string
+	if len(referenceWords) == 0 {
+		return ""
+	}
 
-	// 検索結果から拾った単語を使う
-	usefulWords := extractUsefulReferenceWords(referenceWords)
+	// 重複を除きながら素材を集める。
+	var words []string
+	seen := make(map[string]bool)
 
-	for _, word := range usefulWords {
+	for _, word := range referenceWords {
 		word = strings.TrimSpace(word)
 
 		if word == "" || word == material {
 			continue
 		}
 
-		candidates = append(candidates, word)
-	}
-
-	// 検索結果から拾った文章も候補にする
-	for _, sentence := range referenceSentences {
-		sentence = strings.TrimSpace(sentence)
-
-		if sentence == "" {
+		if len([]rune(word)) < 2 {
 			continue
 		}
 
-		candidates = append(candidates, sentence)
+		if seen[word] {
+			continue
+		}
+
+		seen[word] = true
+		words = append(words, word)
 	}
 
-	if len(candidates) == 0 {
+	if len(words) == 0 {
+		return ""
+	}
+	// 短い言葉を素材として混ぜる。
+	// 長文テンプレではなく、あくまで文章を組み立てるための部品。
+	fragments := []string{
+		material,
+		"なんか",
+		"ちょっと",
+		"気になる",
+		"面白いな",
+		"そうなんや",
+		"らしい",
+		"というか",
+		"たぶん",
+		"だせいは知らんかった",
+		"これ意外やな",
+		"そういう話なんか",
+		"よく分からんけど",
+		"なんとなく",
+	}
+
+	// 検索結果の言葉を素材として追加。
+	for _, word := range words {
+		fragments = append(fragments, word)
+	}
+
+	// 素材をシャッフルする。
+	rand.Shuffle(len(fragments), func(i, j int) {
+		fragments[i], fragments[j] = fragments[j], fragments[i]
+	})
+
+	// 基本は50〜140文字。
+	// ごく一部だけ短文を許容する。
+	shortDraft := rand.Intn(100) < 15
+
+	var result []string
+	used := make(map[string]bool)
+	length := 0
+
+	for _, fragment := range fragments {
+		fragment = strings.TrimSpace(fragment)
+
+		if fragment == "" {
+			continue
+		}
+
+		if used[fragment] {
+			continue
+		}
+
+		addLength := len([]rune(fragment))
+
+		if length+addLength > 140 {
+			continue
+		}
+
+		result = append(result, fragment)
+		used[fragment] = true
+		length += addLength
+		// 短文はここで終了。
+		if shortDraft && length >= 10 {
+			break
+		}
+
+		// 通常は50文字を超えたところから、
+		// ランダムに終了する。
+		if !shortDraft && length >= 50 {
+			if rand.Intn(100) < 35 {
+				break
+			}
+		}
+	}
+
+	if len(result) == 0 {
 		return ""
 	}
 
-	first := candidates[rand.Intn(len(candidates))]
+	// 素材をつなぐ。
+	// ここでは文章を完成させようとしない。
+	draft := strings.TrimSpace(strings.Join(result, " "))
 
-	// 単語・文章をランダムに組み合わせて、
-	// あえて少し雑な「だせいの下書き」を作る。
-	draftTemplates := []string{
-		material + "って" + first + "なんやね。",
-		material + "と" + first + "って、なんか繋がってる感じするな。",
-		first + "って聞くと、だせいは" + material + "を思い出すで。",
-		material + "の話なんやけど、" + first + "ってのも気になるな。",
-		material + "といえば" + first + "なんかな。だせいにはまだよく分からんけど。",
+	if draft == "" {
+		return ""
 	}
-
-	draft := draftTemplates[rand.Intn(len(draftTemplates))]
 
 	if len([]rune(draft)) > 140 {
 		draft = string([]rune(draft)[:140])
@@ -3008,6 +3078,7 @@ func generateDaseiDraftFromReference(material string) string {
 	slog.Info("Dasei draft generated",
 		slog.String("material", material),
 		slog.String("draft", draft),
+		slog.Int("length", len([]rune(draft))),
 	)
 
 	return draft
