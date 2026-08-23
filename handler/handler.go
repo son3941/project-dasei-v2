@@ -1928,9 +1928,6 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	}
 	var candidates []string
 
-	// 元の返信に残っている定型的な反応を取り除く。
-	// 検索結果を使った具体化だけを残し、同じ文章構造が
-	// 毎回繰り返されるのを防ぐ。
 	baseReply := reply
 
 	templateParts := []string{
@@ -1942,8 +1939,6 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		"そういう話を聞いてると",
 		"どういうことなのか少しずつ気になってくるかな。",
 		"どういうことなのか少しずつ気になってくるかな",
-		"こういう話って、調べてみると意外といろいろあるんやね。",
-		"だせいも少し気になってきた。",
 	}
 
 	for _, part := range templateParts {
@@ -1952,52 +1947,23 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 
 	baseReply = strings.TrimSpace(baseReply)
 
-	if baseReply == "" {
-		baseReply = reply
+	if baseReply != "" {
+		candidates = append(candidates,
+			baseReply+" "+bestSentence,
+		)
 	}
 
-	// 検索結果を使いながら、毎回違う文章構造を作る。
 	if len(matchedWords) >= 1 {
 		candidates = append(candidates,
-			baseReply+" "+matchedWords[0]+"って、"+bestSentence+"。"+
-				"なるほど、そういうことなんやね。",
-		)
-
-		candidates = append(candidates,
-			baseReply+" "+bestSentence+"。"+
-				matchedWords[0]+"のこと、ちょっと分かった気がする。",
-		)
-
-		candidates = append(candidates,
-			matchedWords[0]+"って気になってたけど、"+
-				bestSentence+"。"+
-				baseReply,
+			matchedWords[0]+"について調べると、"+bestSentence,
 		)
 	}
 
 	if len(matchedWords) >= 2 {
 		candidates = append(candidates,
-			baseReply+" "+matchedWords[0]+"と"+matchedWords[1]+"って、"+
-				bestSentence+"。"+
-				"こういう関係なんやね。",
-		)
-
-		candidates = append(candidates,
-			matchedWords[0]+"の話から調べてみたら、"+
-				bestSentence+"。"+
-				matchedWords[1]+"も関係してくるんやね。",
+			matchedWords[0]+"と"+matchedWords[1]+"について調べると、"+bestSentence,
 		)
 	}
-
-	candidates = append(candidates,
-		baseReply+" "+bestSentence+"。"+
-			"知らんかったなあ。",
-	)
-
-	candidates = append(candidates,
-		baseReply+" "+bestSentence+"。"+
-			"こういうの、知るとちょっと面白いな。",
-	)
 	var validCandidates []string
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
