@@ -1926,42 +1926,58 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 	}
 	var candidates []string
 
-	baseReply := reply
+	// 検索結果は、そのまま返信として使わず、
+	// だせいが話を膨らませるための材料として扱う。
+	baseReply := strings.TrimSpace(reply)
 
-	templateParts := []string{
-		"そうなんやね。",
-		"そうなんやね",
-		"だせいにはまだよく分からないところもあるけど、",
-		"だせいにはまだよく分からないところもあるけど",
-		"そういう話を聞いてると、",
-		"そういう話を聞いてると",
-		"どういうことなのか少しずつ気になってくるかな。",
-		"どういうことなのか少しずつ気になってくるかな",
+	if baseReply == "" {
+		baseReply = "そうなんやね"
 	}
 
-	for _, part := range templateParts {
-		baseReply = strings.ReplaceAll(baseReply, part, "")
-	}
-
-	baseReply = strings.TrimSpace(baseReply)
-
-	if baseReply != "" {
-		candidates = append(candidates,
-			baseReply+" "+bestSentence,
-		)
-	}
-
+	// 検索結果から得た情報を、だせいの言葉として
+	// 言い換える候補を作る。
 	if len(matchedWords) >= 1 {
+		word := matchedWords[0]
+
 		candidates = append(candidates,
-			matchedWords[0]+"について調べると、"+bestSentence,
+			baseReply+" "+word+"のことを調べてみたら、"+bestSentence+"。"+
+				"こういう話なんやね。",
+		)
+
+		candidates = append(candidates,
+			word+"って、"+bestSentence+"。"+
+				baseReply+"。こういうのはちょっと面白いな。",
+		)
+
+		candidates = append(candidates,
+			baseReply+" "+word+"について見てたら、"+
+				bestSentence+"。"+
+				"だせいもちょっと知らんかったな。",
 		)
 	}
 
 	if len(matchedWords) >= 2 {
+		word1 := matchedWords[0]
+		word2 := matchedWords[1]
+
 		candidates = append(candidates,
-			matchedWords[0]+"と"+matchedWords[1]+"について調べると、"+bestSentence,
+			baseReply+" "+word1+"と"+word2+"について見てみたら、"+
+				bestSentence+"。"+
+				"こういうつながりがあるんやね。",
 		)
 	}
+
+	// 検索結果そのものを使う候補。
+	// ただし、説明文だけで終わらせず、だせいの反応を付ける。
+	candidates = append(candidates,
+		baseReply+" "+bestSentence+"。"+
+			"なんかこういうの、知るとちょっと面白いな。",
+	)
+
+	candidates = append(candidates,
+		baseReply+" "+bestSentence+"。"+
+			"だせいはそこまで知らんかったわ。",
+	)
 	var validCandidates []string
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
