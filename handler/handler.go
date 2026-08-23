@@ -1477,34 +1477,110 @@ func polishDaseiReply(originalText string, reply string) string {
 	return normalizeDaseiReply(reply)
 }
 func checkReferenceSentences(reply string, referenceSentences []string) string {
-	if reply == "" || len(referenceSentences) == 0 {
-		return reply
+	reply = strings.TrimSpace(reply)
+
+	if reply == "" {
+		return ""
 	}
 
-	replyTokens := tokenizeForPolish(reply)
+	// 連続した空白を整理
+	reply = strings.Join(strings.Fields(reply), " ")
 
-	if len(replyTokens) == 0 {
-		return reply
+	// 句読点の重複を整理
+	for strings.Contains(reply, "。。") {
+		reply = strings.ReplaceAll(reply, "。。", "。")
 	}
 
-	for _, sentence := range referenceSentences {
-		referenceTokens := tokenizeForPolish(sentence)
+	for strings.Contains(reply, "！！") {
+		reply = strings.ReplaceAll(reply, "！！", "！")
+	}
 
-		if len(referenceTokens) == 0 {
+	for strings.Contains(reply, "？？") {
+		reply = strings.ReplaceAll(reply, "？？", "？")
+	}
+
+	// 同じ文が連続している場合は1回だけ残す。
+	parts := strings.Split(reply, "。")
+
+	var cleaned []string
+	var previous string
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+
+		if part == "" {
 			continue
 		}
 
-		matched := countCommonWords(replyTokens, referenceTokens)
+		if part == previous {
+			continue
+		}
 
-		if matched > 0 {
-			slog.Info("Wikipedia filter sentence matched",
-				slog.String("sentence", sentence),
-				slog.Int("matched", matched),
-			)
+		cleaned = append(cleaned, part)
+		previous = part
+	}
+
+	reply = strings.Join(cleaned, "。")
+	if reply != "" && !strings.HasSuffix(reply, "。") &&
+		!strings.HasSuffix(reply, "！") &&
+		!strings.HasSuffix(reply, "？") {
+		reply += "。"
+	}
+
+	// 同じ定型的な短文が連続している場合だけ削る。
+	repeatedParts := []string{
+		"そうなんやね。",
+		"なるほどなあ。",
+		"そうなんやね。なるほどなあ。",
+		"なるほどなあ。そうなんやね。",
+	}
+
+	for _, part := range repeatedParts {
+		doublePart := part + part
+
+		for strings.Contains(reply, doublePart) {
+			reply = strings.ReplaceAll(reply, doublePart, part)
 		}
 	}
 
-	return reply
+	// 同じ長い文がそのまま2回出ている場合を除去。
+	sentences := strings.Split(reply, "。")
+
+	var result []string
+	seen := make(map[string]bool)
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+
+		if sentence == "" {
+			continue
+		}
+
+		// 15文字以上の同一文だけ重複排除する。
+		if len([]rune(sentence)) >= 15 {
+			if seen[sentence] {
+				continue
+			}
+
+			seen[sentence] = true
+		}
+
+		result = append(result, sentence)
+	}
+
+	reply = strings.Join(result, "。")
+
+	if reply != "" &&
+		!strings.HasSuffix(reply, "。") &&
+		!strings.HasSuffix(reply, "！") &&
+		!strings.HasSuffix(reply, "？") {
+		reply += "。"
+	}
+
+	slog.Info("Dasei reference polish checked",
+		slog.String("reply", reply),
+	)
+
+	return strings.TrimSpace(reply)
 }
 func isFactCheckReply(originalText string, reply string) bool {
 	originalText = strings.TrimSpace(originalText)
