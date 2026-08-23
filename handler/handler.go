@@ -1394,15 +1394,107 @@ func generateRandomDaseiDraft(text string) string {
 		return ""
 	}
 
-	candidates := []string{
-		"へえ、そうなんや。",
-		"なるほどなあ。",
-		"それはちょっと気になるな。",
-		"そういうこともあるんやね。",
-		"へえ、知らんかった。",
+	// たまに短文をそのまま出す。
+	if rand.Intn(100) < 15 {
+		short := []string{
+			"へえ、そうなんや。",
+			"なるほどなあ。",
+			"知らんかった。",
+			"そういうこと？",
+			"なんか面白いな。",
+			"そうなんやね。",
+			"ふむふむ。",
+		}
+
+		return short[rand.Intn(len(short))]
+	}
+	// 長めの独り言用の短い素材。
+	reactions := []string{
+		"へえ",
+		"なんか",
+		"たしかに",
+		"そうなんや",
+		"知らんかった",
+		"そういうことなんやね",
+		"これちょっと面白いな",
+		"意外やな",
+		"そうなん？",
+		"なるほどなあ",
+		"だせいは知らんかった",
+		"こういうの好きやな",
+		"なんとなく分かる",
+		"それは気になるな",
+		"まあそういうこともあるか",
+		"そう聞くと面白いな",
+	}
+	// 元のポストから短い素材を拾う。
+	originalWords := tokenizeForPolish(text)
+
+	var words []string
+
+	for _, word := range originalWords {
+		word = strings.TrimSpace(word)
+
+		if word == "" {
+			continue
+		}
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		if isPolishSymbol(word) {
+			continue
+		}
+
+		words = append(words, word)
+	}
+	var result []string
+	length := 0
+
+	// 50〜140文字を目標に素材を追加する。
+	for length < 50 {
+		var part string
+
+		if len(words) > 0 && rand.Intn(100) < 45 {
+			part = words[rand.Intn(len(words))]
+		} else {
+			part = reactions[rand.Intn(len(reactions))]
+		}
+
+		part = strings.TrimSpace(part)
+
+		if part == "" {
+			continue
+		}
+
+		// 同じ言葉を連続させない。
+		if len(result) > 0 && result[len(result)-1] == part {
+			continue
+		}
+
+		result = append(result, part)
+		length += len([]rune(part))
+	}
+	// 50〜140文字の範囲で止める。
+	for length < 140 && rand.Intn(100) < 45 {
+		part := reactions[rand.Intn(len(reactions))]
+
+		if len(result) > 0 && result[len(result)-1] == part {
+			continue
+		}
+
+		nextLength := length + len([]rune(part))
+
+		if nextLength > 140 {
+			break
+		}
+
+		result = append(result, part)
+		length = nextLength
 	}
 
-	return candidates[rand.Intn(len(candidates))]
+	return strings.TrimSpace(strings.Join(result, " "))
 }
 func generateReplyWithWebCheck(text string) string {
 	// まず、だせいの雑な返事を作る
@@ -1840,14 +1932,27 @@ func expandShortDaseiReply(reply string, originalText string, referenceWords []s
 
 	return strings.TrimSpace(reply)
 }
-func polishWithReference(reply string, originalText string, referenceWords []string, referenceSentences []string) string {
+func polishWithReference(
+	reply string,
+	originalText string,
+	referenceWords []string,
+	referenceSentences []string,
+) string {
 	reply = strings.TrimSpace(reply)
 	originalText = strings.TrimSpace(originalText)
 
-	if reply == "" || originalText == "" {
-		return reply
+	if reply == "" {
+		return ""
 	}
 
+	// 検索結果の文章そのものは使わない。
+	// referenceSentences は今後の怪文書生成などで利用する可能性があるため、
+	// この段階では受け取るだけにする。
+	_ = referenceSentences
+
+	if originalText == "" || len(referenceWords) == 0 {
+		return normalizeDaseiReply(reply)
+	}
 	originalTokens := tokenizeForPolish(originalText)
 
 	if len(originalTokens) == 0 {
@@ -1872,10 +1977,9 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 			}
 		}
 	}
-
-	// 重複を除く
-	uniqueWords := make([]string, 0, len(matchedWords))
+	// 重複を除く。
 	seen := make(map[string]bool)
+	uniqueWords := make([]string, 0, len(matchedWords))
 
 	for _, word := range matchedWords {
 		if seen[word] {
@@ -1892,65 +1996,14 @@ func polishWithReference(reply string, originalText string, referenceWords []str
 		matchedWords = matchedWords[:3]
 	}
 
-	baseReply := strings.TrimSpace(reply)
-
-	if len(matchedWords) == 0 {
-		return normalizeDaseiReply(baseReply)
-	}
-	// 検索結果の文章は使わず、
-	// 元の返信に拾った言葉を自然に織り込む。
-	var candidates []string
-
-	if len(matchedWords) >= 1 {
-		candidates = append(candidates,
-			baseReply+" "+matchedWords[0]+"のことも少し気になってきた。",
-		)
-	}
-
-	if len(matchedWords) >= 2 {
-		candidates = append(candidates,
-			baseReply+" "+matchedWords[0]+"と"+matchedWords[1]+"も関係してくるんやね。",
-		)
-	}
-
-	if len(matchedWords) >= 3 {
-		candidates = append(candidates,
-			baseReply+" "+matchedWords[0]+"だけじゃなくて、"+matchedWords[1]+"や"+matchedWords[2]+"まで出てくるんやね。",
-		)
-	}
-
-	// 元の返信をそのまま残す候補も用意する。
-	candidates = append(candidates, baseReply)
-
-	var validCandidates []string
-
-	for _, candidate := range candidates {
-		candidate = strings.TrimSpace(candidate)
-
-		if candidate == "" {
-			continue
-		}
-
-		length := len([]rune(candidate))
-
-		if length <= 140 {
-			validCandidates = append(validCandidates, candidate)
-		}
-	}
-
-	if len(validCandidates) == 0 {
-		return normalizeDaseiReply(baseReply)
-	}
-
-	result := validCandidates[rand.Intn(len(validCandidates))]
-
-	slog.Info("Dasei reference polish applied",
+	// 現段階では、検索結果の文章を固定文へ変換しない。
+	// 元の下書きをそのまま最終校正へ渡す。
+	slog.Info("Dasei reference words collected",
 		slog.Int("matched_words", len(matchedWords)),
 		slog.String("before", reply),
-		slog.String("after", result),
 	)
 
-	return normalizeDaseiReply(result)
+	return normalizeDaseiReply(reply)
 }
 func countRelevantCommonWords(a []string, b []string) int {
 	stopWords := map[string]bool{
@@ -2518,64 +2571,62 @@ func polishDaseiJapanese(text string) string {
 		return ""
 	}
 
-	// 改行・空白を整理。
-	lines := strings.FieldsFunc(text, func(r rune) bool {
-		return r == '\n' || r == '\r'
-	})
+	// 改行・連続空白を整理する。
+	fields := strings.Fields(text)
+	text = strings.Join(fields, " ")
 
-	var parts []string
+	if text == "" {
+		return ""
+	}
+	// 日本語では単語間の空白を基本的に残さない。
+	text = strings.ReplaceAll(text, " ", "")
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	// 句読点の前後を整理する。
+	text = strings.ReplaceAll(text, "。", "。 ")
+	text = strings.ReplaceAll(text, "！", "！ ")
+	text = strings.ReplaceAll(text, "？", "？ ")
 
-		if line == "" {
+	text = strings.Join(strings.Fields(text), " ")
+
+	text = strings.ReplaceAll(text, "。 ", "。")
+	text = strings.ReplaceAll(text, "！ ", "！")
+	text = strings.ReplaceAll(text, "？ ", "？")
+	// 明らかな重複だけを整理する。
+	duplicatePatterns := []string{
+		"そうなんやそうなんや",
+		"知らんかった知らんかった",
+		"なるほどなるほど",
+		"へえへえ",
+		"たしかにたしかに",
+		"なんかなんか",
+		"ふむふむふむ",
+	}
+
+	for _, pattern := range duplicatePatterns {
+		half := []rune(pattern)
+		if len(half) < 2 {
 			continue
 		}
 
-		parts = append(parts, line)
+		mid := len(half) / 2
+		first := string(half[:mid])
+		second := string(half[mid:])
+
+		text = strings.ReplaceAll(text, first+second, first)
+	}
+	// 句読点が連続しすぎる場合だけ整理する。
+	for strings.Contains(text, "。。") {
+		text = strings.ReplaceAll(text, "。。", "。")
 	}
 
-	text = strings.Join(parts, " ")
-
-	// 句読点まわりの余計な空白を整理。
-	text = strings.ReplaceAll(text, " 。", "。")
-	text = strings.ReplaceAll(text, " 、", "、")
-	text = strings.ReplaceAll(text, "！ ", "！")
-	text = strings.ReplaceAll(text, "？ ", "？")
-
-	// 同じ句読点が異常に連続する場合だけ整理。
-	text = strings.ReplaceAll(text, "。。", "。")
-	text = strings.ReplaceAll(text, "、、", "、")
-
-	// 文末記号の直後に別の文がくっついている場合、
-	// 最低限の空白を入れる。
-	text = strings.ReplaceAll(text, "。そう", "。 そう")
-	text = strings.ReplaceAll(text, "。なるほど", "。 なるほど")
-	text = strings.ReplaceAll(text, "。でも", "。 でも")
-	text = strings.ReplaceAll(text, "。ただ", "。 ただ")
-	text = strings.ReplaceAll(text, "。だから", "。 だから")
-
-	// 同じ短い反応が連続した場合だけ除去。
-	for {
-		old := text
-
-		text = strings.ReplaceAll(text, "そうなんやね。そうなんやね。", "そうなんやね。")
-		text = strings.ReplaceAll(text, "なるほど。なるほど。", "なるほど。")
-		text = strings.ReplaceAll(text, "知らんかった。知らんかった。", "知らんかった。")
-		text = strings.ReplaceAll(text, "へえ。へえ。", "へえ。")
-
-		if text == old {
-			break
-		}
+	for strings.Contains(text, "、、") {
+		text = strings.ReplaceAll(text, "、、", "、")
 	}
 
-	// 文頭に不要な句読点が残った場合だけ除去。
+	// 文頭に残った不要な記号だけ除去。
 	text = strings.TrimLeft(text, " 、。")
 
-	// 文末の余計な空白を除去。
-	text = strings.TrimSpace(text)
-
-	return text
+	return strings.TrimSpace(text)
 }
 func nicknameOf(name string) string {
 	nicknameMu.RLock()
