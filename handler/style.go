@@ -6,26 +6,25 @@ import (
 	"strings"
 )
 
-func randomStyle(text string) string {
+func randomStyle(text string) (string, string) {
 
 	r := rand.Intn(100)
 
 	switch {
 
 	case r < 60:
-		return text
+		return text, "normal"
 
 	case r < 70:
-		return ojisanTranslate(text)
+		return ojisanTranslate(text), "ojisan"
 
 	case r < 80:
-		return zombieTranslate(text)
+		return zombieTranslate(text), "chuunibyou"
 
 	default:
-		return chaosTranslate(text)
+		return chaosTranslate(text), "chaos"
 	}
 }
-
 func zombieTranslate(text string) string {
 
 	mode := rand.Intn(100)

@@ -138,11 +138,17 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		authenticator: authenticator,
 	}
 }
-func polishDaseiMutter(reply string) string {
+func polishDaseiMutter(reply string, style string) string {
 	reply = strings.TrimSpace(reply)
 
 	if reply == "" {
 		return ""
+	}
+
+	// 特殊スタイルは、それぞれの表現を壊さない。
+	// 通常独り言だけ本格的な文章校正を行う。
+	if style != "normal" {
+		return normalizeDaseiReply(reply)
 	}
 
 	wikipediaResult := searchWikipedia(reply)
@@ -159,8 +165,6 @@ func polishDaseiMutter(reply string) string {
 	referenceWords := extractReferenceWords(webResult)
 	referenceSentences := extractReferenceSentences(webResult)
 
-	// 検索結果に関連する情報がある場合だけ、
-	// 下書きを具体化する。
 	polished := polishWithReference(
 		reply,
 		reply,
@@ -186,9 +190,13 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 		return nil
 	}
 	reply := createMutter("")
-	reply = randomStyle(reply)
-	reply = polishDaseiMutter(reply)
+	reply, style := randomStyle(reply)
+	reply = polishDaseiMutter(reply, style)
 	reply = normalizeDaseiPostLength(reply)
+
+	slog.Info("mutter style",
+		slog.String("style", style),
+	)
 
 	if reply == "" {
 		return nil
@@ -1799,6 +1807,9 @@ func rebuildDaseiJapanese(text string) string {
 	}
 
 	var nouns []string
+	var verbs []string
+	var adjectives []string
+
 	seen := make(map[string]bool)
 
 	for _, token := range tokens {
@@ -1811,12 +1822,18 @@ func rebuildDaseiJapanese(text string) string {
 			continue
 		}
 
-		if token.POS != "名詞" {
-			continue
-		}
-
 		seen[word] = true
-		nouns = append(nouns, word)
+
+		switch token.POS {
+		case "名詞":
+			nouns = append(nouns, word)
+
+		case "動詞":
+			verbs = append(verbs, word)
+
+		case "形容詞":
+			adjectives = append(adjectives, word)
+		}
 	}
 
 	if len(nouns) == 0 {
@@ -1826,62 +1843,90 @@ func rebuildDaseiJapanese(text string) string {
 	rand.Shuffle(len(nouns), func(i, j int) {
 		nouns[i], nouns[j] = nouns[j], nouns[i]
 	})
-	// 文章を作るための短い部品。
-	connectors := []string{
-		"って",
-		"とか",
-		"も",
-		"の話って",
-	}
 
-	reactions := []string{
-		"なんか気になるな。",
-		"そういうのもあるんやね。",
-		"ちょっと意外やな。",
-		"だせいは詳しく知らんけど。",
-		"なんとなく分かる気もする。",
-	}
+	rand.Shuffle(len(verbs), func(i, j int) {
+		verbs[i], verbs[j] = verbs[j], verbs[i]
+	})
 
+	rand.Shuffle(len(adjectives), func(i, j int) {
+		adjectives[i], adjectives[j] = adjectives[j], adjectives[i]
+	})
 	var sentences []string
-	index := 0
 
-	for index < len(nouns) && len(sentences) < 3 {
-		first := nouns[index]
-		index++
+	// 名詞同士から話題を1文作る。
+	if len(nouns) >= 2 {
+		first := nouns[0]
+		second := nouns[1]
 
-		// まだ単語が残っていれば、
-		// 2つを軽く関連付けて1文にする。
-		if index < len(nouns) && rand.Intn(100) < 70 {
-			second := nouns[index]
-			index++
-
-			connector := connectors[rand.Intn(len(connectors))]
-
-			sentence := first +
-				connector +
-				second +
-				"、" +
-				reactions[rand.Intn(len(reactions))]
-
-			sentences = append(sentences, sentence)
-			continue
+		openers := []string{
+			first + "って" + second + "と関係あるんかな。",
+			first + "の話に" + second + "まで出てくるんやね。",
+			first + "と" + second + "が並ぶと、なんか気になるな。",
 		}
 
-		sentence := first +
-			"って" +
-			reactions[rand.Intn(len(reactions))]
-
-		sentences = append(sentences, sentence)
+		sentences = append(
+			sentences,
+			openers[rand.Intn(len(openers))],
+		)
+	} else {
+		sentences = append(
+			sentences,
+			nouns[0]+"ってなんか気になるな。",
+		)
 	}
+
+	// 動詞が取れていれば、別の名詞と組み合わせる。
+	if len(verbs) > 0 && len(nouns) >= 3 {
+		noun := nouns[2]
+		verb := verbs[0]
+
+		verbSentences := []string{
+			noun + "を" + verb + "っていう話もあるんやね。",
+			noun + "が" + verb + "って聞くと、ちょっと意外やな。",
+			noun + "まで" + verb + "となると、だせいにはよく分からん。",
+		}
+
+		sentences = append(
+			sentences,
+			verbSentences[rand.Intn(len(verbSentences))],
+		)
+	}
+	// 形容詞が取れていれば、文章の材料として使う。
+	if len(adjectives) > 0 {
+		adjective := adjectives[0]
+
+		if len(nouns) >= 4 {
+			noun := nouns[3]
+
+			sentences = append(
+				sentences,
+				noun+"が"+adjective+"っていうのも面白いな。",
+			)
+		}
+	}
+
+	// まだ使っていない名詞があれば、
+	// 最後に軽く話題を飛ばす。
+	if len(nouns) >= 5 && rand.Intn(100) < 60 {
+		noun := nouns[4]
+
+		endings := []string{
+			noun + "のことも少し気になってきた。",
+			"そういえば" + noun + "ってのもあるな。",
+			noun + "まで出てくるとは思わんかった。",
+		}
+
+		sentences = append(
+			sentences,
+			endings[rand.Intn(len(endings))],
+		)
+	}
+
 	if len(sentences) == 0 {
 		return text
 	}
 
 	result := strings.Join(sentences, "")
-
-	if len([]rune(result)) > 140 {
-		result = string([]rune(result)[:140])
-	}
 
 	return strings.TrimSpace(result)
 }
