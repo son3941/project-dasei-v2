@@ -10,10 +10,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/mixigroup/mixi2-application-sample-go/handler"
 	"github.com/mixigroup/mixi2-application-sdk-go/auth"
 	"github.com/mixigroup/mixi2-application-sdk-go/event/webhook"
 	application_apiv1 "github.com/mixigroup/mixi2-application-sdk-go/gen/go/social/mixi/application/service/application_api/v1"
+	"github.com/son3941/project-dasei-v2/handler"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

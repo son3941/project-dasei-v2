@@ -100,6 +100,38 @@ var (
 	learnedPhrases []LearnedPhrase
 	learnedWordsMu sync.RWMutex
 )
+var (
+	lastHumanPostAt   time.Time
+	lastHumanPostAtMu sync.RWMutex
+
+	forcedActiveUntil   time.Time
+	forcedActiveUntilMu sync.RWMutex
+)
+
+func isDaseiActive() bool {
+	lastHumanPostAtMu.RLock()
+	lastHuman := lastHumanPostAt
+	lastHumanPostAtMu.RUnlock()
+
+	forcedActiveUntilMu.RLock()
+	forcedUntil := forcedActiveUntil
+	forcedActiveUntilMu.RUnlock()
+
+	if !forcedUntil.IsZero() && time.Now().Before(forcedUntil) {
+		return true
+	}
+
+	if lastHuman.IsZero() {
+		return false
+	}
+
+	return time.Since(lastHuman) < time.Hour
+}
+func StartForcedDaseiActivity(duration time.Duration) {
+	forcedActiveUntilMu.Lock()
+	forcedActiveUntil = time.Now().Add(duration)
+	forcedActiveUntilMu.Unlock()
+}
 
 // Handler implements event.EventHandler interface.
 type Handler struct {
@@ -186,6 +218,9 @@ func polishDaseiMutter(reply string, style string) string {
 	return normalizeDaseiReply(reply)
 }
 func (h *Handler) PostMutter(ctx context.Context) error {
+	if !isDaseiActive() {
+		return nil
+	}
 	if rand.Intn(100) >= PostChance {
 		return nil
 	}
@@ -306,6 +341,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if displayName == "だせい" {
 			return nil
 		}
+		lastHumanPostAtMu.Lock()
+		lastHumanPostAt = time.Now()
+		lastHumanPostAtMu.Unlock()
 		if isNGMember(displayName) {
 			return nil
 		}

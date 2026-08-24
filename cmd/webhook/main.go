@@ -9,7 +9,6 @@ import (
 
 	"log"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -73,18 +72,16 @@ func main() {
 			}
 		}
 	}()
-	// Create server
-	addr := ":" + cfg.Port
 	go func() {
 		for {
-			time.Sleep(10 * time.Minute)
+			time.Sleep(3 * time.Hour)
 
-			if rand.Intn(100) < 60 {
-				ctx := context.Background()
-				_ = eventHandler.PostMutter(ctx)
-			}
+			handler.StartForcedDaseiActivity(30 * time.Minute)
 		}
 	}()
+	// Create server
+	addr := ":" + cfg.Port
+
 	server := webhook.NewServer(addr, publicKey, eventHandler, webhook.WithLogger(logger))
 
 	// Setup graceful shutdown
