@@ -3081,7 +3081,17 @@ func ensureDaseiPostLength(post string, fragments []string) string {
 func createMutter(text string) string {
 	// 30%は中二病
 	if rand.Intn(100) < 30 {
-		return decorateMutter(createChuunibyou())
+		post := createChuunibyou()
+
+		if post == "" {
+			return ""
+		}
+
+		// まず厨二病の文章を最終校正する。
+		// その後に荒ぶる判定へ渡す。
+		post = finalizeDaseiReply(post, post)
+
+		return decorateMutter(post)
 	}
 
 	if len(memories) > 0 {
@@ -3115,9 +3125,13 @@ func createMutter(text string) string {
 			draft := generateDaseiDraftFromReference(material)
 
 			if draft != "" {
-				return decorateMutter(
-					applyNicknames(draft),
-				)
+				draft = applyNicknames(draft)
+
+				// 通常独り言を最終校正してから、
+				// 装飾・荒ぶる判定へ渡す。
+				draft = finalizeDaseiReply(material, draft)
+
+				return decorateMutter(draft)
 			}
 
 			// 検索結果から生成できなかった場合は、

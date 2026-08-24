@@ -66,5 +66,5 @@ func createCrazyMutter(post string) string {
 	}
 	text := strings.TrimSpace(strings.Join(result, " "))
 
-	return finalizeDaseiReply(text, text)
+	return text
 }
