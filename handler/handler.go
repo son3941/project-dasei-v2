@@ -1683,6 +1683,187 @@ func tokenizeForPolish(text string) []string {
 
 	return words
 }
+
+type polishToken struct {
+	Surface string
+	POS     string
+}
+
+func tokenizeForJapanesePolish(text string) []polishToken {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return nil
+	}
+
+	tokens := wakati.Tokenize(text)
+
+	var result []polishToken
+
+	for _, token := range tokens {
+		surface := strings.TrimSpace(token.Surface)
+
+		if surface == "" ||
+			surface == "BOS" ||
+			surface == "EOS" {
+			continue
+		}
+
+		if isPolishSymbol(surface) {
+			continue
+		}
+
+		pos := ""
+		posList := token.POS()
+
+		if len(posList) > 0 {
+			pos = posList[0]
+		}
+
+		result = append(result, polishToken{
+			Surface: surface,
+			POS:     pos,
+		})
+	}
+
+	return result
+}
+func needsJapanesePolish(text string) bool {
+	tokens := tokenizeForJapanesePolish(text)
+
+	if len(tokens) == 0 {
+		return false
+	}
+
+	nouns := 0
+	verbs := 0
+	adjectives := 0
+	particles := 0
+
+	for _, token := range tokens {
+		switch token.POS {
+		case "名詞":
+			nouns++
+		case "動詞":
+			verbs++
+		case "形容詞":
+			adjectives++
+		case "助詞":
+			particles++
+		}
+	}
+
+	// 名詞ばかり並んでいて、
+	// 助詞・動詞・形容詞がほとんど無い文章は
+	// 「単語の羅列」と判断する。
+	if nouns >= 4 &&
+		particles <= 1 &&
+		verbs == 0 &&
+		adjectives == 0 {
+		return true
+	}
+
+	// ある程度長いのに助詞が全く無い場合も校正対象。
+	if len(tokens) >= 8 && particles == 0 {
+		return true
+	}
+
+	return false
+}
+func rebuildDaseiJapanese(text string) string {
+	tokens := tokenizeForJapanesePolish(text)
+
+	if len(tokens) == 0 {
+		return text
+	}
+
+	var nouns []string
+	seen := make(map[string]bool)
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" ||
+			word == "BOS" ||
+			word == "EOS" ||
+			seen[word] {
+			continue
+		}
+
+		if token.POS != "名詞" {
+			continue
+		}
+
+		seen[word] = true
+		nouns = append(nouns, word)
+	}
+
+	if len(nouns) == 0 {
+		return text
+	}
+
+	rand.Shuffle(len(nouns), func(i, j int) {
+		nouns[i], nouns[j] = nouns[j], nouns[i]
+	})
+	// 文章を作るための短い部品。
+	connectors := []string{
+		"って",
+		"とか",
+		"も",
+		"の話って",
+	}
+
+	reactions := []string{
+		"なんか気になるな。",
+		"そういうのもあるんやね。",
+		"ちょっと意外やな。",
+		"だせいは詳しく知らんけど。",
+		"なんとなく分かる気もする。",
+	}
+
+	var sentences []string
+	index := 0
+
+	for index < len(nouns) && len(sentences) < 3 {
+		first := nouns[index]
+		index++
+
+		// まだ単語が残っていれば、
+		// 2つを軽く関連付けて1文にする。
+		if index < len(nouns) && rand.Intn(100) < 70 {
+			second := nouns[index]
+			index++
+
+			connector := connectors[rand.Intn(len(connectors))]
+
+			sentence := first +
+				connector +
+				second +
+				"、" +
+				reactions[rand.Intn(len(reactions))]
+
+			sentences = append(sentences, sentence)
+			continue
+		}
+
+		sentence := first +
+			"って" +
+			reactions[rand.Intn(len(reactions))]
+
+		sentences = append(sentences, sentence)
+	}
+	if len(sentences) == 0 {
+		return text
+	}
+
+	result := strings.Join(sentences, "")
+
+	if len([]rune(result)) > 140 {
+		result = string([]rune(result)[:140])
+	}
+
+	return strings.TrimSpace(result)
+}
 func countCommonWords(replyTokens []string, referenceTokens []string) int {
 	if len(replyTokens) == 0 || len(referenceTokens) == 0 {
 		return 0
@@ -2524,6 +2705,16 @@ func polishDaseiJapanese(text string) string {
 
 	if text == "" {
 		return ""
+	}
+
+	// 単語の羅列など、日本語として崩れている場合だけ
+	// 読める文章へ組み直す。
+	if needsJapanesePolish(text) {
+		rebuilt := rebuildDaseiJapanese(text)
+
+		if strings.TrimSpace(rebuilt) != "" {
+			text = rebuilt
+		}
 	}
 
 	// 改行・連続空白を整理する。
