@@ -177,6 +177,8 @@ func polishDaseiMutter(reply string) string {
 		referenceSentences,
 	)
 
+	reply = polishDaseiJapanese(reply)
+
 	return normalizeDaseiReply(reply)
 }
 func (h *Handler) PostMutter(ctx context.Context) error {
@@ -2543,13 +2545,34 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 
 	runes := []rune(reply)
 
-	// 140文字を超えた場合だけ切る。
-	// 50文字未満だからといって水増しはしない。
-	if len(runes) > 140 {
-		return string(runes[:140])
+	// 140文字以内ならそのまま返す。
+	if len(runes) <= 140 {
+		return reply
 	}
 
-	return reply
+	// 140文字以内の範囲で、
+	// できるだけ後ろにある自然な文末を探す。
+	limit := runes[:140]
+
+	for i := len(limit) - 1; i >= 0; i-- {
+		switch limit[i] {
+		case '。', '！', '？':
+			// あまりにも短くなりすぎる場合は使わない。
+			if i >= 50 {
+				return strings.TrimSpace(string(limit[:i+1]))
+			}
+		}
+	}
+
+	// 文末記号が無い場合は「、」も候補にする。
+	for i := len(limit) - 1; i >= 0; i-- {
+		if limit[i] == '、' && i >= 50 {
+			return strings.TrimSpace(string(limit[:i])) + "。"
+		}
+	}
+
+	// 適切な区切りが見つからない場合だけ140文字で切る。
+	return strings.TrimSpace(string(limit))
 }
 func createReply(text string) string {
 
