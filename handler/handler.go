@@ -1731,6 +1731,12 @@ func tokenizeForJapanesePolish(text string) []polishToken {
 	return result
 }
 func needsJapanesePolish(text string) bool {
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		return false
+	}
+
 	tokens := tokenizeForJapanesePolish(text)
 
 	if len(tokens) == 0 {
@@ -1755,18 +1761,31 @@ func needsJapanesePolish(text string) bool {
 		}
 	}
 
-	// 名詞ばかり並んでいて、
-	// 助詞・動詞・形容詞がほとんど無い文章は
-	// 「単語の羅列」と判断する。
-	if nouns >= 4 &&
-		particles <= 1 &&
-		verbs == 0 &&
-		adjectives == 0 {
+	// 名詞が多く、助詞がほとんど無い場合。
+	// 動詞が少し混ざっていても校正対象にする。
+	if nouns >= 5 && particles <= 2 {
 		return true
 	}
 
-	// ある程度長いのに助詞が全く無い場合も校正対象。
-	if len(tokens) >= 8 && particles == 0 {
+	// 長い文章なのに句点などが一切なく、
+	// 名詞の割合が高い場合も単語列とみなす。
+	hasSentenceEnd := strings.ContainsAny(text, "。！？!?")
+
+	if len(tokens) >= 10 &&
+		!hasSentenceEnd &&
+		nouns*2 >= len(tokens) {
+		return true
+	}
+
+	// かなり長いのに助詞が少なすぎる場合。
+	if len(tokens) >= 12 && particles <= 2 {
+		return true
+	}
+
+	// 動詞・形容詞が全くなく名詞中心なら当然校正する。
+	if nouns >= 4 &&
+		verbs == 0 &&
+		adjectives == 0 {
 		return true
 	}
 
@@ -3249,8 +3268,19 @@ func generateDaseiDraftFromReference(material string) string {
 		"なんとなく",
 	}
 
-	// 検索結果の言葉を素材として追加。
-	for _, word := range words {
+	// 検索結果の言葉は毎回ランダムに絞って使う。
+	// 同じ検索結果から同じ言葉ばかり出るのを防ぐ。
+	rand.Shuffle(len(words), func(i, j int) {
+		words[i], words[j] = words[j], words[i]
+	})
+
+	useCount := rand.Intn(5) + 3 // 3〜7語
+
+	if useCount > len(words) {
+		useCount = len(words)
+	}
+
+	for _, word := range words[:useCount] {
 		fragments = append(fragments, word)
 	}
 
