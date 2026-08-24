@@ -2916,6 +2916,63 @@ func shapeDaseiParts(parts []string) string {
 
 	return text
 }
+func getRandomLearnedMaterial() string {
+	learnedWordsMu.RLock()
+	defer learnedWordsMu.RUnlock()
+
+	var candidates []string
+	seen := make(map[string]bool)
+
+	// 覚えているフレーズから素材を集める。
+	for _, phrase := range learnedPhrases {
+		text := strings.TrimSpace(phrase.Text)
+
+		if text == "" ||
+			isProtectedName(text) ||
+			isMeaninglessLearnedText(text) ||
+			seen[text] {
+			continue
+		}
+
+		seen[text] = true
+		candidates = append(candidates, text)
+	}
+
+	// 覚えているペアからも素材を集める。
+	for _, pair := range learnedPairs {
+		values := []string{
+			strings.TrimSpace(pair.Key),
+			strings.TrimSpace(pair.Value),
+		}
+
+		for _, text := range values {
+			if text == "" ||
+				isProtectedName(text) ||
+				isMeaninglessLearnedText(text) ||
+				seen[text] {
+				continue
+			}
+
+			seen[text] = true
+			candidates = append(candidates, text)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	// 出現回数による重み付けはしない。
+	// 覚えている素材すべてから均等にランダム選択する。
+	material := candidates[rand.Intn(len(candidates))]
+
+	slog.Info("random learned material",
+		slog.String("material", material),
+		slog.Int("candidates", len(candidates)),
+	)
+
+	return material
+}
 func generateMemoryPost() string {
 	learnedWordsMu.RLock()
 
@@ -3180,7 +3237,7 @@ func createMutter(text string) string {
 
 		return decorateMutter(post)
 	}
-
+	learnedMaterial := strings.TrimSpace(getRandomLearnedMaterial())
 	if len(memories) > 0 {
 		memoryMu.RLock()
 
@@ -3208,6 +3265,10 @@ func createMutter(text string) string {
 
 		if len(values) > 0 {
 			material := values[rand.Intn(len(values))]
+
+			if learnedMaterial != "" {
+				material = material + " " + learnedMaterial
+			}
 
 			draft := generateDaseiDraftFromReference(material)
 
