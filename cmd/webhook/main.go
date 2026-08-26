@@ -82,7 +82,28 @@ func main() {
 	// Create server
 	addr := ":" + cfg.Port
 
-	server := webhook.NewServer(addr, publicKey, eventHandler, webhook.WithLogger(logger))
+	webhookServer := webhook.NewServer(
+		addr,
+		publicKey,
+		eventHandler,
+		webhook.WithLogger(logger),
+	)
+
+	mux := http.NewServeMux()
+
+	// Health check for Render / UptimeRobot
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	})
+
+	// All other requests go to the mixi2 webhook server
+	mux.Handle("/", webhookServer.Handler())
+
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
 
 	// Setup graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -92,15 +113,17 @@ func main() {
 		logger.Info("shutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := server.Shutdown(ctx); err != nil {
+
+		if err := httpServer.Shutdown(ctx); err != nil {
 			logger.Error("shutdown error", slog.Any("error", err))
 		}
 	}()
 
 	// Start server
 	logger.Info("starting webhook server", slog.String("port", cfg.Port))
-	if err := server.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
+
 	logger.Info("stopped")
 }
