@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,7 +62,8 @@ func main() {
 	apiClient := application_apiv1.NewApplicationServiceClient(apiConn)
 
 	// Create event handler
-	eventHandler := handler.NewHandler(apiClient, authenticator)
+	communityIDs := strings.Split(cfg.CommunityIDs, ",")
+	eventHandler := handler.NewHandler(apiClient, authenticator, communityIDs...)
 	go func() {
 		for {
 			time.Sleep(30 * time.Second)

@@ -20,6 +20,7 @@ type Config struct {
 	// Webhook settings
 	SignaturePublicKey string `envconfig:"SIGNATURE_PUBLIC_KEY"`
 	Port               string `envconfig:"PORT" default:"8080"`
+	CommunityIDs       string `envconfig:"COMMUNITY_IDS"`
 }
 
 // GetConfig loads configuration from environment variables.

@@ -139,10 +139,11 @@ type Handler struct {
 	apiClient     application_apiv1.ApplicationServiceClient
 	authenticator auth.Authenticator
 	communityID   string
+	communityIDs  []string
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authenticator auth.Authenticator) *Handler {
+func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authenticator auth.Authenticator, communityID ...string) *Handler {
 	loaded, err := LoadMemories()
 	if err == nil {
 		memoryMu.Lock()
@@ -164,11 +165,26 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		learnedPairs = pairs
 		learnedWordsMu.Unlock()
 	}
-	return &Handler{
+	h := &Handler{
 		logger:        slog.Default(),
 		apiClient:     apiClient,
 		authenticator: authenticator,
 	}
+
+	for _, id := range communityID {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+
+		h.communityIDs = append(h.communityIDs, id)
+
+		if h.communityID == "" {
+			h.communityID = id
+		}
+	}
+
+	return h
 }
 func polishDaseiMutter(reply string, style string) string {
 	reply = strings.TrimSpace(reply)
@@ -243,31 +259,43 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	slog.Info("community", slog.String("id", h.communityID))
-	if h.communityID == "" {
+	communityIDs := h.communityIDs
+
+	if len(communityIDs) == 0 && h.communityID != "" {
+		communityIDs = []string{h.communityID}
+	}
+
+	if len(communityIDs) == 0 {
 		return nil
 	}
-	resp, err := h.apiClient.CreatePost(
-		authCtx,
-		&application_apiv1.CreatePostRequest{
-			CommunityId: &h.communityID,
-			Text:        reply,
-		},
-	)
 
-	if err != nil {
-		h.logger.Error("failed to create mutter",
-			slog.String("error", err.Error()),
+	for _, communityID := range communityIDs {
+		slog.Info("community", slog.String("id", communityID))
+
+		resp, err := h.apiClient.CreatePost(
+			authCtx,
+			&application_apiv1.CreatePostRequest{
+				CommunityId: &communityID,
+				Text:        reply,
+			},
 		)
-		return err
-	}
 
-	slog.Info("create response",
-		slog.Any("resp", resp),
-	)
-	slog.Info("created post id",
-		slog.String("postId", resp.Post.PostId),
-	)
+		if err != nil {
+			h.logger.Error("failed to create mutter",
+				slog.String("communityId", communityID),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+
+		slog.Info("create response",
+			slog.Any("resp", resp),
+		)
+		slog.Info("created post id",
+			slog.String("communityId", communityID),
+			slog.String("postId", resp.Post.PostId),
+		)
+	}
 
 	slog.Info("★★★★ PostMutter END ★★★★")
 	return nil
