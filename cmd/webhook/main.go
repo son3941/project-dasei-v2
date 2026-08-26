@@ -69,8 +69,18 @@ func main() {
 			time.Sleep(30 * time.Second)
 
 			ctx := context.Background()
-			if err := eventHandler.PostMutter(ctx); err != nil {
-				logger.Error("mutter failed", "err", err)
+			for _, communityID := range communityIDs {
+				communityID = strings.TrimSpace(communityID)
+				if communityID == "" {
+					continue
+				}
+
+				if err := eventHandler.PostMutter(ctx, communityID); err != nil {
+					logger.Error("mutter failed",
+						"communityId", communityID,
+						"err", err,
+					)
+				}
 			}
 		}
 	}()
@@ -78,7 +88,17 @@ func main() {
 		for {
 			time.Sleep(3 * time.Hour)
 
-			handler.StartForcedDaseiActivity(30 * time.Minute)
+			for _, communityID := range communityIDs {
+				communityID = strings.TrimSpace(communityID)
+				if communityID == "" {
+					continue
+				}
+
+				handler.StartForcedDaseiActivity(
+					communityID,
+					30*time.Minute,
+				)
+			}
 		}
 	}()
 	// Create server

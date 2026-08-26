@@ -101,20 +101,20 @@ var (
 	learnedWordsMu sync.RWMutex
 )
 var (
-	lastHumanPostAt   time.Time
+	lastHumanPostAt   = make(map[string]time.Time)
 	lastHumanPostAtMu sync.RWMutex
 
-	forcedActiveUntil   time.Time
+	forcedActiveUntil   = make(map[string]time.Time)
 	forcedActiveUntilMu sync.RWMutex
 )
 
-func isDaseiActive() bool {
+func isDaseiActive(communityID string) bool {
 	lastHumanPostAtMu.RLock()
-	lastHuman := lastHumanPostAt
+	lastHuman := lastHumanPostAt[communityID]
 	lastHumanPostAtMu.RUnlock()
 
 	forcedActiveUntilMu.RLock()
-	forcedUntil := forcedActiveUntil
+	forcedUntil := forcedActiveUntil[communityID]
 	forcedActiveUntilMu.RUnlock()
 
 	if !forcedUntil.IsZero() && time.Now().Before(forcedUntil) {
@@ -127,9 +127,9 @@ func isDaseiActive() bool {
 
 	return time.Since(lastHuman) < time.Hour
 }
-func StartForcedDaseiActivity(duration time.Duration) {
+func StartForcedDaseiActivity(communityID string, duration time.Duration) {
 	forcedActiveUntilMu.Lock()
-	forcedActiveUntil = time.Now().Add(duration)
+	forcedActiveUntil[communityID] = time.Now().Add(duration)
 	forcedActiveUntilMu.Unlock()
 }
 
@@ -233,19 +233,22 @@ func polishDaseiMutter(reply string, style string) string {
 
 	return normalizeDaseiReply(reply)
 }
-func (h *Handler) PostMutter(ctx context.Context) error {
-	if !isDaseiActive() {
+func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
+	if !isDaseiActive(communityID) {
 		return nil
 	}
+
 	if rand.Intn(100) >= PostChance {
 		return nil
 	}
+
 	reply := createMutter("")
 	reply, style := randomStyle(reply)
 	reply = polishDaseiMutter(reply, style)
 	reply = normalizeDaseiPostLength(reply)
 
 	slog.Info("mutter style",
+		slog.String("communityId", communityID),
 		slog.String("style", style),
 	)
 
@@ -253,55 +256,53 @@ func (h *Handler) PostMutter(ctx context.Context) error {
 		return nil
 	}
 
-	slog.Info("mutter", slog.String("text", reply))
+	slog.Info("mutter",
+		slog.String("communityId", communityID),
+		slog.String("text", reply),
+	)
 
 	authCtx, err := h.authenticator.AuthorizedContext(ctx)
 	if err != nil {
 		return err
 	}
-	communityIDs := h.communityIDs
 
-	if len(communityIDs) == 0 && h.communityID != "" {
-		communityIDs = []string{h.communityID}
-	}
-
-	if len(communityIDs) == 0 {
+	if communityID == "" {
 		return nil
 	}
 
-	for _, communityID := range communityIDs {
-		slog.Info("community", slog.String("id", communityID))
+	slog.Info("community", slog.String("id", communityID))
 
-		resp, err := h.apiClient.CreatePost(
-			authCtx,
-			&application_apiv1.CreatePostRequest{
-				CommunityId: &communityID,
-				Text:        reply,
-			},
-		)
+	resp, err := h.apiClient.CreatePost(
+		authCtx,
+		&application_apiv1.CreatePostRequest{
+			CommunityId: &communityID,
+			Text:        reply,
+		},
+	)
 
-		if err != nil {
-			h.logger.Error("failed to create mutter",
-				slog.String("communityId", communityID),
-				slog.String("error", err.Error()),
-			)
-			return err
-		}
-
-		slog.Info("create response",
-			slog.Any("resp", resp),
-		)
-		slog.Info("created post id",
+	if err != nil {
+		h.logger.Error("failed to create mutter",
 			slog.String("communityId", communityID),
-			slog.String("postId", resp.Post.PostId),
+			slog.String("error", err.Error()),
 		)
+		return err
 	}
 
-	slog.Info("★★★★ PostMutter END ★★★★")
+	slog.Info("create response",
+		slog.Any("resp", resp),
+	)
+
+	slog.Info("created post id",
+		slog.String("communityId", communityID),
+		slog.String("postId", resp.Post.PostId),
+	)
+
+	slog.Info("★★★★ PostMutter END ★★★★",
+		slog.String("communityId", communityID),
+	)
+
 	return nil
 }
-
-// Handle processes events from mixi2.
 func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 	slog.Info("EVENT TYPE",
 		slog.Int("event_type", int(ev.EventType)),
@@ -369,8 +370,9 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if displayName == "だせい" {
 			return nil
 		}
+		communityID := post.GetPost().GetCommunityId()
 		lastHumanPostAtMu.Lock()
-		lastHumanPostAt = time.Now()
+		lastHumanPostAt[communityID] = time.Now()
 		lastHumanPostAtMu.Unlock()
 		if isNGMember(displayName) {
 			return nil
@@ -418,7 +420,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return err
 		}
 
-		communityID := post.GetPost().GetCommunityId()
+		communityID = post.GetPost().GetCommunityId()
 
 		memberPosts, err := h.getMemberPosts(
 			authCtx,
