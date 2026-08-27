@@ -512,7 +512,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			return nil
 		}
 		if shouldReply {
-			_, err = h.apiClient.CreatePost(
+			resp, err := h.apiClient.CreatePost(
 				authCtx,
 				&application_apiv1.CreatePostRequest{
 					CommunityId: &communityID,
@@ -521,6 +521,11 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 					InReplyToPostId: &replyTo,
 				},
 			)
+			if err == nil && resp != nil && resp.GetPost() != nil {
+				slog.Info("dasei reply creator",
+					slog.String("creatorId", resp.GetPost().GetCreatorId()),
+				)
+			}
 		} else {
 			_, err = h.apiClient.CreatePost(
 				authCtx,
@@ -1505,9 +1510,33 @@ func generateNaturalReply(text string) string {
 }
 func generateRandomDaseiDraft(text string, threadContext ...string) string {
 	text = strings.TrimSpace(text)
-
+	context := strings.TrimSpace(strings.Join(threadContext, " "))
+	var contextParts []string
+	if context != "" {
+		for _, part := range strings.Split(context, "\n") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				contextParts = append(contextParts, part)
+			}
+		}
+	}
 	if text == "" {
 		return ""
+	}
+	// 会話履歴がある場合、直前までの発言を確認する。
+	var previousText string
+	if len(contextParts) > 0 {
+		previousText = contextParts[len(contextParts)-1]
+	}
+	// 会話が続いている場合は、直前の流れを踏まえて返す。
+	if previousText != "" &&
+		(strings.Contains(text, "まだ") ||
+			strings.HasPrefix(text, "でも") ||
+			strings.HasPrefix(text, "いや") ||
+			strings.HasPrefix(text, "せや") ||
+			strings.HasPrefix(text, "そう")) {
+
+		return "さっき「" + previousText + "」って言ってたけど、" + text + "ってことなんやね。"
 	}
 	// 「どうした？」系。
 	// 質問への回答ではなく、直前の自分の発言について聞かれている。
@@ -1584,7 +1613,6 @@ func generateRandomDaseiDraft(text string, threadContext ...string) string {
 		return replies[rand.Intn(len(replies))]
 	}
 
-	// 通常の発言は、元の文章を壊さずに受ける。
 	replies := []string{
 		"そうなんや。そう聞くとちょっと気になるな。",
 		"なるほどなあ。そういうことならなんとなく分かる。",
@@ -3792,7 +3820,7 @@ func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1
 		contextParts = append(contextParts, postText)
 	}
 
-	threadContext := strings.Join(contextParts, " ")
+	threadContext := strings.Join(contextParts, "\n")
 	normalized := strings.TrimSpace(text)
 
 	if strings.Contains(normalized, "何の話") ||
