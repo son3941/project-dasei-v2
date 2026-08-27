@@ -1503,7 +1503,7 @@ func generateNaturalReply(text string) string {
 		"それは気になるね",
 	)
 }
-func generateRandomDaseiDraft(text string) string {
+func generateRandomDaseiDraft(text string, threadContext ...string) string {
 	text = strings.TrimSpace(text)
 
 	if text == "" {
@@ -2864,20 +2864,10 @@ func createReply(text string, threadContext ...string) string {
 	// 自然な日本語で返信。
 	// スレッド履歴がある場合は、現在の発言だけでなく
 	// 会話の先頭からの流れも返信材料にする。
-	replySource := text
-
-	if len(threadContext) > 0 {
-		contextText := strings.TrimSpace(threadContext[0])
-
-		if contextText != "" {
-			replySource = strings.TrimSpace(contextText + " " + text)
-		}
-	}
-
-	reply = generateRandomDaseiDraft(replySource)
+	reply = generateRandomDaseiDraft(text, threadContext...)
 
 	if reply != "" {
-		return finalizeDaseiReply(replySource, reply)
+		return finalizeDaseiReply(text, reply)
 	}
 
 	return finalizeDaseiReply(text, "そうなんだね")
