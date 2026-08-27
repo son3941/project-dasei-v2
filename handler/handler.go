@@ -1510,107 +1510,56 @@ func generateRandomDaseiDraft(text string, threadContext ...string) string {
 		return ""
 	}
 
-	// たまに短文をそのまま出す。
+	// ごく一部だけ短文を許容する。
 	if rand.Intn(100) < 15 {
 		short := []string{
 			"へえ、そうなんや。",
 			"なるほどなあ。",
 			"知らんかった。",
 			"そういうこと？",
-			"なんか面白いな。",
+			"なんか気になるな。",
 			"そうなんやね。",
 			"ふむふむ。",
 		}
 
 		return short[rand.Intn(len(short))]
 	}
-	// 長めの独り言用の短い素材。
-	reactions := []string{
-		"へえ",
-		"なんか",
-		"たしかに",
-		"そうなんや",
-		"知らんかった",
-		"そういうことなんやね",
-		"これちょっと面白いな",
-		"意外やな",
-		"そうなん？",
-		"なるほどなあ",
-		"だせいは知らんかった",
-		"こういうの好きやな",
-		"なんとなく分かる",
-		"それは気になるな",
-		"まあそういうこともあるか",
-		"そう聞くと面白いな",
-	}
-	// 元のポストから短い素材を拾う。
-	originalWords := tokenizeForPolish(text)
 
-	var words []string
+	// 相手から訂正・ツッコミを受けた場合。
+	if strings.HasPrefix(text, "いや") ||
+		strings.Contains(text, "ちゃう") ||
+		strings.Contains(text, "違う") {
 
-	for _, word := range originalWords {
-		word = strings.TrimSpace(word)
-
-		if word == "" {
-			continue
+		replies := []string{
+			"たしかに、そう言われると違うな。だせい何言ってたんやろ。",
+			"あ、たしかにそうやな。なんか勝手に話を変な方向へ持っていってた。",
+			"そう言われるとその通りやな。だせいちょっと勘違いしてたわ。",
 		}
 
-		if len([]rune(word)) < 2 {
-			continue
-		}
-
-		if isPolishSymbol(word) {
-			continue
-		}
-
-		words = append(words, word)
-	}
-	var result []string
-	length := 0
-
-	// 50〜140文字を目標に素材を追加する。
-	for length < 50 {
-		var part string
-
-		if len(words) > 0 && rand.Intn(100) < 45 {
-			part = words[rand.Intn(len(words))]
-		} else {
-			part = reactions[rand.Intn(len(reactions))]
-		}
-
-		part = strings.TrimSpace(part)
-
-		if part == "" {
-			continue
-		}
-
-		// 同じ言葉を連続させない。
-		if len(result) > 0 && result[len(result)-1] == part {
-			continue
-		}
-
-		result = append(result, part)
-		length += len([]rune(part))
-	}
-	// 50〜140文字の範囲で止める。
-	for length < 140 && rand.Intn(100) < 45 {
-		part := reactions[rand.Intn(len(reactions))]
-
-		if len(result) > 0 && result[len(result)-1] == part {
-			continue
-		}
-
-		nextLength := length + len([]rune(part))
-
-		if nextLength > 140 {
-			break
-		}
-
-		result = append(result, part)
-		length = nextLength
+		return replies[rand.Intn(len(replies))]
 	}
 
-	return strings.TrimSpace(strings.Join(result, " "))
+	// 質問には質問として反応する。
+	if strings.Contains(text, "？") || strings.Contains(text, "?") {
+		replies := []string{
+			"それはちょっと気になるな。だせいも考えてみたけど、すぐには答え出てこん。",
+			"そう聞かれると気になるな。なんとなく分かりそうで、まだちゃんとは分からん。",
+			"それ、だせいもちょっと考えた。簡単そうに見えて意外とむずかしい話やな。",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
+
+	// 通常の発言は、元の文章を壊さずに受ける。
+	replies := []string{
+		"そうなんや。そう聞くとちょっと気になるな。",
+		"なるほどなあ。そういうことならなんとなく分かる。",
+		"へえ、そうなんやね。だせいはそこまで考えてなかった。",
+		"そういう話なんか。なんかちょっと面白いな。",
+		"たしかに、そういうこともあるか。だせいは知らんかった。",
+	}
+
+	return replies[rand.Intn(len(replies))]
 }
 func generateReplyWithWebCheck(text string) string {
 	// まず、だせいの雑な返事を作る
