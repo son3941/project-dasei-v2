@@ -2869,9 +2869,7 @@ func finalizeDaseiReply(originalText string, reply string) string {
 	// 重複した表現だけを整理する。
 	reply = cleanRepeatedDaseiReply(reply)
 
-	// 最終校正。
-	// ここでは内容を増やさず、日本語としての形だけを整える。
-	reply = polishDaseiJapanese(reply)
+	// reply = polishDaseiJapanese(reply)
 
 	// 最後に文字数上限だけを適用する。
 	reply = ensureDaseiReplyLength(reply, originalText)
