@@ -2744,7 +2744,7 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	// 適切な区切りが見つからない場合だけ140文字で切る。
 	return strings.TrimSpace(string(limit))
 }
-func createReply(text string) string {
+func createReply(text string, threadContext ...string) string {
 
 	// 名前を呼ばれたら必ず返信
 	if strings.Contains(text, "だせい") || strings.Contains(text, "惰性") {
@@ -2861,11 +2861,23 @@ func createReply(text string) string {
 			return finalizeDaseiReply(text, zombieReply(text))
 		}
 	}
-	// 自然な日本語で返信
-	reply = generateRandomDaseiDraft(text)
+	// 自然な日本語で返信。
+	// スレッド履歴がある場合は、現在の発言だけでなく
+	// 会話の先頭からの流れも返信材料にする。
+	replySource := text
+
+	if len(threadContext) > 0 {
+		contextText := strings.TrimSpace(threadContext[0])
+
+		if contextText != "" {
+			replySource = strings.TrimSpace(contextText + " " + text)
+		}
+	}
+
+	reply = generateRandomDaseiDraft(replySource)
 
 	if reply != "" {
-		return finalizeDaseiReply(text, reply)
+		return finalizeDaseiReply(replySource, reply)
 	}
 
 	return finalizeDaseiReply(text, "そうなんだね")
@@ -3794,7 +3806,30 @@ func (h *Handler) getThreadPosts(
 	return reversed, nil
 }
 func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1.Post) string {
-	return GenerateReply(text, isMention)
+	var contextParts []string
+
+	for _, post := range threadPosts {
+		if post == nil {
+			continue
+		}
+
+		postText := strings.TrimSpace(post.GetText())
+		if postText == "" || postText == strings.TrimSpace(text) {
+			continue
+		}
+
+		contextParts = append(contextParts, postText)
+	}
+
+	threadContext := strings.Join(contextParts, " ")
+
+	if isMention {
+		if reply := mentionReply(text); reply != "" {
+			return reply
+		}
+	}
+
+	return createReply(text, threadContext)
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
