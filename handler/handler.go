@@ -3830,7 +3830,7 @@ func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1
 		strings.Contains(normalized, "なんの話してた") {
 
 		if len(contextParts) > 0 {
-			for i := len(contextParts) - 1; i >= 0; i-- {
+			for i := 0; i < len(contextParts); i++ {
 				past := strings.TrimSpace(contextParts[i])
 
 				if past == "" {
