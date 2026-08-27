@@ -247,6 +247,18 @@ func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
 	reply = polishDaseiMutter(reply, style)
 	reply = normalizeDaseiPostLength(reply)
 
+	kaibunsho := makeKaibunsho(reply, nil)
+	reply = limitKaibunshoLength(kaibunsho.Text)
+
+	slog.Info("kaibunsho",
+		slog.String("communityId", communityID),
+		slog.String("mode", string(kaibunsho.Mode)),
+		slog.Int("level", kaibunsho.Level),
+		slog.Int("mixRate", kaibunsho.MixRate),
+		slog.Int("contamRate", kaibunsho.ContamRate),
+		slog.String("text", reply),
+	)
+
 	slog.Info("mutter style",
 		slog.String("communityId", communityID),
 		slog.String("style", style),
