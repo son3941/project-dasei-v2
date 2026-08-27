@@ -1509,7 +1509,52 @@ func generateRandomDaseiDraft(text string, threadContext ...string) string {
 	if text == "" {
 		return ""
 	}
+	// 「どうした？」系。
+	// 質問への回答ではなく、直前の自分の発言について聞かれている。
+	if strings.Contains(text, "どうした") ||
+		strings.Contains(text, "どした") {
 
+		replies := []string{
+			"えーとえーと",
+			"なんでもないよ。ちょっと気になっただけ。",
+			"だせいも自分で言ってから、なんでそう言ったのか分からん。",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
+	// 「今〜だった？」系。
+	// 直前のだせいの発言について確認されている。
+	if strings.Contains(text, "今") &&
+		(strings.Contains(text, "あった") ||
+			strings.Contains(text, "言った") ||
+			strings.Contains(text, "した")) {
+
+		replies := []string{
+			"いや、よく考えたらそんなことなかった。",
+			"だせいが勝手にそう思っただけかもしれん。",
+			"あ！！！",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
+	// 否定・ツッコミ系。
+	// 直前のだせいの発言に対して否定された場合。
+	if strings.Contains(text, "ちゃう") ||
+		strings.Contains(text, "違う") ||
+		strings.Contains(text, "要らん") ||
+		strings.Contains(text, "いらん") ||
+		strings.Contains(text, "なんでや") {
+
+		replies := []string{
+			"まじでか",
+			"そっちじゃなかったか。",
+			"だせい勘違いしてたわ。",
+			"なるほど、そういうことか。",
+			"な　ん　や　て",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
 	// ごく一部だけ短文を許容する。
 	if rand.Intn(100) < 15 {
 		short := []string{
@@ -1534,17 +1579,6 @@ func generateRandomDaseiDraft(text string, threadContext ...string) string {
 			"たしかに、そう言われると違うな。だせい何言ってたんやろ。",
 			"あ、たしかにそうやな。なんか勝手に話を変な方向へ持っていってた。",
 			"そう言われるとその通りやな。だせいちょっと勘違いしてたわ。",
-		}
-
-		return replies[rand.Intn(len(replies))]
-	}
-
-	// 質問には質問として反応する。
-	if strings.Contains(text, "？") || strings.Contains(text, "?") {
-		replies := []string{
-			"それはちょっと気になるな。だせいも考えてみたけど、すぐには答え出てこん。",
-			"そう聞かれると気になるな。なんとなく分かりそうで、まだちゃんとは分からん。",
-			"それ、だせいもちょっと考えた。簡単そうに見えて意外とむずかしい話やな。",
 		}
 
 		return replies[rand.Intn(len(replies))]
