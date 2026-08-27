@@ -490,7 +490,25 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		communityID = post.GetPost().GetCommunityId()
 		h.communityID = communityID
 		replyTo := post.GetPost().GetPostId()
+		threadPosts, err := h.getThreadPosts(authCtx, post.GetPost())
+		if err != nil {
+			slog.Error("getThreadPosts failed",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			slog.Info("thread posts loaded",
+				slog.Int("count", len(threadPosts)),
+			)
 
+			for i, threadPost := range threadPosts {
+				slog.Info("thread post",
+					slog.Int("index", i),
+					slog.String("post_id", threadPost.GetPostId()),
+					slog.String("reply_to", threadPost.GetInReplyToPostId()),
+					slog.String("text", threadPost.GetText()),
+				)
+			}
+		}
 		if shouldReply {
 			_, err = h.apiClient.CreatePost(
 				authCtx,
@@ -3723,6 +3741,55 @@ func (h *Handler) getMemberPosts(
 	}
 
 	return texts, nil
+}
+func (h *Handler) getThreadPosts(
+	authCtx context.Context,
+	currentPost *modelv1.Post,
+) ([]*modelv1.Post, error) {
+	if currentPost == nil {
+		return nil, nil
+	}
+
+	var reversed []*modelv1.Post
+	post := currentPost
+
+	for post != nil {
+		reversed = append(reversed, post)
+
+		parentID := strings.TrimSpace(post.GetInReplyToPostId())
+		if parentID == "" {
+			break
+		}
+
+		resp, err := h.apiClient.GetPosts(
+			authCtx,
+			&application_apiv1.GetPostsRequest{
+				PostIdList: []string{parentID},
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		posts := resp.GetPosts()
+		if len(posts) == 0 || posts[0] == nil {
+			break
+		}
+
+		post = posts[0]
+
+		// 念のため最大30投稿まで。
+		if len(reversed) >= 30 {
+			break
+		}
+	}
+
+	// 「現在→親→先頭」から「先頭→現在」へ並べ直す。
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+
+	return reversed, nil
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
