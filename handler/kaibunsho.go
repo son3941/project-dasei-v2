@@ -557,6 +557,27 @@ func makeKaibunsho(
 
 	text := strings.Join(parts, " ")
 
+	if len(communityWords) > 0 {
+		hasCommunityWord := false
+
+		for _, word := range communityWords {
+			word = strings.TrimSpace(word)
+			if word != "" && strings.Contains(text, word) {
+				hasCommunityWord = true
+				break
+			}
+		}
+
+		if !hasCommunityWord {
+			word := strings.TrimSpace(
+				communityWords[rand.Intn(len(communityWords))],
+			)
+
+			if word != "" {
+				text = strings.TrimSpace(text + " " + word)
+			}
+		}
+	}
 	return KaibunshoResult{
 		Text:       text,
 		Mode:       settings.Mode,

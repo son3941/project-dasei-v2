@@ -13,7 +13,14 @@ func TestKaibunshoGenerator(t *testing.T) {
 	fmt.Println()
 
 	for i := 1; i <= 10; i++ {
-		result := makeKaibunsho(source, nil)
+		communityWords := []string{
+			"だせい",
+			"ココアシガレット",
+			"なんかそれっぽい",
+			"( ˘ω˘ )",
+		}
+
+		result := makeKaibunsho(source, communityWords)
 
 		fmt.Printf("----- %d -----\n", i)
 		fmt.Println("Mode:", result.Mode)

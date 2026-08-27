@@ -247,7 +247,9 @@ func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
 	reply = polishDaseiMutter(reply, style)
 	reply = normalizeDaseiPostLength(reply)
 
-	kaibunsho := makeKaibunsho(reply, nil)
+	communityWords := getLearnedMaterials()
+
+	kaibunsho := makeKaibunsho(reply, communityWords)
 	reply = limitKaibunshoLength(kaibunsho.Text)
 
 	slog.Info("kaibunsho",
@@ -3052,6 +3054,48 @@ func getRandomLearnedMaterial() string {
 	)
 
 	return material
+}
+func getLearnedMaterials() []string {
+	learnedWordsMu.RLock()
+	defer learnedWordsMu.RUnlock()
+
+	var candidates []string
+	seen := make(map[string]bool)
+
+	for _, phrase := range learnedPhrases {
+		text := strings.TrimSpace(phrase.Text)
+
+		if text == "" ||
+			isProtectedName(text) ||
+			isMeaninglessLearnedText(text) ||
+			seen[text] {
+			continue
+		}
+
+		seen[text] = true
+		candidates = append(candidates, text)
+	}
+
+	for _, pair := range learnedPairs {
+		values := []string{
+			strings.TrimSpace(pair.Key),
+			strings.TrimSpace(pair.Value),
+		}
+
+		for _, text := range values {
+			if text == "" ||
+				isProtectedName(text) ||
+				isMeaninglessLearnedText(text) ||
+				seen[text] {
+				continue
+			}
+
+			seen[text] = true
+			candidates = append(candidates, text)
+		}
+	}
+
+	return candidates
 }
 func generateMemoryPost() string {
 	learnedWordsMu.RLock()
