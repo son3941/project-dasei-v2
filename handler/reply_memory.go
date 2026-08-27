@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"math/rand"
 	"strings"
 	"time"
@@ -69,6 +70,10 @@ func replyFromMemory(text string) string {
 		}
 	}
 	memoryMu.RUnlock()
-
+	slog.Info("replyFromMemory hit",
+		slog.String("key", matchedKey),
+		slog.String("value", reply),
+		slog.String("original", text),
+	)
 	return addEmoji(reply)
 }
