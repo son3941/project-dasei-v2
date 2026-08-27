@@ -459,23 +459,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 				slog.String("text", memberPost),
 			)
 		}
-		slog.Info("before GenerateReply")
-		reply := GenerateReply(
-			text,
-			isMention,
-		)
 
-		reply = ensureDaseiReplyLength(reply, text)
-
-		if reply == "" {
-			return nil
-		}
-		slog.Info("after GenerateReply",
-			slog.String("reply", reply),
-		)
-		if reply == "" {
-			return nil
-		}
 		authCtx, err = h.authenticator.AuthorizedContext(ctx)
 		if err != nil {
 			return err
@@ -508,6 +492,24 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 					slog.String("text", threadPost.GetText()),
 				)
 			}
+		}
+		slog.Info("before GenerateReply")
+		reply := GenerateReplyWithThread(
+			text,
+			isMention,
+			threadPosts,
+		)
+
+		reply = ensureDaseiReplyLength(reply, text)
+
+		if reply == "" {
+			return nil
+		}
+		slog.Info("after GenerateReply",
+			slog.String("reply", reply),
+		)
+		if reply == "" {
+			return nil
 		}
 		if shouldReply {
 			_, err = h.apiClient.CreatePost(
@@ -3790,6 +3792,9 @@ func (h *Handler) getThreadPosts(
 	}
 
 	return reversed, nil
+}
+func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1.Post) string {
+	return GenerateReply(text, isMention)
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
