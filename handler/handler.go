@@ -3822,7 +3822,33 @@ func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1
 	}
 
 	threadContext := strings.Join(contextParts, " ")
+	normalized := strings.TrimSpace(text)
 
+	if strings.Contains(normalized, "何の話") ||
+		strings.Contains(normalized, "なんの話") ||
+		strings.Contains(normalized, "何話してた") ||
+		strings.Contains(normalized, "なんの話してた") {
+
+		if len(contextParts) > 0 {
+			for i := len(contextParts) - 1; i >= 0; i-- {
+				past := strings.TrimSpace(contextParts[i])
+
+				if past == "" {
+					continue
+				}
+
+				if strings.Contains(past, "何の話") ||
+					strings.Contains(past, "なんの話") {
+					continue
+				}
+
+				return finalizeDaseiReply(
+					past,
+					"さっきは「"+past+"」って話してたよ。",
+				)
+			}
+		}
+	}
 	if isMention {
 		if reply := mentionReply(text); reply != "" {
 			return reply
