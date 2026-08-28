@@ -1672,44 +1672,137 @@ func buildDaseiContinuationReply(
 		return ""
 	}
 
-	cleanText := strings.Trim(text, " 、。！？")
+	// 現在の発言自体が質問なら、
+	// 継続会話でも質問として処理する。
+	if isQuestionText(text) {
+		topic := extractContinuationTopic(
+			text,
+			previousHumanText,
+			previousDaseiText,
+		)
+
+		return buildReplyToQuestion(text, topic)
+	}
+
+	topic := extractContinuationTopic(
+		text,
+		previousHumanText,
+		previousDaseiText,
+	)
+
+	cleanText := cleanContinuationText(text)
 
 	if cleanText == "" {
 		return ""
 	}
+	// 直前のだせいが質問していた場合は、
+	// 現在の発言をその質問への回答として受け取る。
+	if previousDaseiText != "" &&
+		(strings.Contains(previousDaseiText, "？") ||
+			strings.Contains(previousDaseiText, "?")) {
 
-	// 会話末尾だけ整理して、元の内容は壊さない。
+		if topic != "" {
+			return "なるほど。" + topic +
+				"はそういう感じなんやな。"
+		}
+
+		return "なるほど、そういうことなんやな。"
+	}
+
+	// 話題を維持できている場合は、
+	// 現在の発言をその話題への追加情報として受け取る。
+	if topic != "" {
+		currentWords := extractConversationWords(text)
+
+		for _, word := range currentWords {
+			if word == topic ||
+				strings.Contains(topic, word) ||
+				strings.Contains(word, topic) {
+
+				return topic + "の話なんやな。なるほど。"
+			}
+		}
+
+		return topic + "の話の続きか。なるほどな。"
+	}
+
+	// 話題を特定できない場合でも、
+	// 元発言を壊して作り直さない。
+	return "なるほどな。そういうことか。"
+}
+func extractContinuationTopic(
+	text string,
+	previousHumanText string,
+	previousDaseiText string,
+) string {
+	// まず現在の発言から話題を探す。
+	for _, source := range []string{
+		text,
+		previousHumanText,
+		previousDaseiText,
+	} {
+		tokens := wakati.Tokenize(source)
+
+		var nounParts []string
+
+		for _, token := range tokens {
+			word := strings.TrimSpace(token.Surface)
+
+			if word == "" ||
+				word == "BOS" ||
+				word == "EOS" ||
+				isPolishSymbol(word) {
+				continue
+			}
+
+			features := token.Features()
+			if len(features) == 0 {
+				continue
+			}
+
+			if features[0] == "名詞" {
+				nounParts = append(nounParts, word)
+				continue
+			}
+
+			if len(nounParts) > 0 {
+				break
+			}
+		}
+
+		if len(nounParts) > 0 {
+			return strings.Join(nounParts, "")
+		}
+	}
+
+	return ""
+}
+
+func cleanContinuationText(text string) string {
+	text = strings.TrimSpace(text)
+	text = strings.Trim(text, " 、。！？!?")
+
 	for _, suffix := range []string{
-		"んよ",
+		"んだよね",
+		"んやけど",
+		"だよね",
 		"んだよ",
 		"んやで",
-		"んだ",
-		"よ",
+		"よね",
+		"んよ",
+		"だよ",
 		"ね",
+		"よ",
 	} {
-		if strings.HasSuffix(cleanText, suffix) {
-			cleanText = strings.TrimSpace(
-				strings.TrimSuffix(cleanText, suffix),
+		if strings.HasSuffix(text, suffix) {
+			text = strings.TrimSpace(
+				strings.TrimSuffix(text, suffix),
 			)
 			break
 		}
 	}
 
-	if cleanText == "" {
-		return ""
-	}
-
-	prefix := "そっか、"
-
-	// 直前のだせいが質問していた場合は、
-	// 今の発言をその質問への回答として受け取る。
-	if previousDaseiText != "" &&
-		(strings.Contains(previousDaseiText, "？") ||
-			strings.Contains(previousDaseiText, "?")) {
-		prefix = "なるほど、"
-	}
-
-	return prefix + cleanText + "んやね。"
+	return strings.Trim(text, " 、。！？!?")
 }
 func buildReplyFromHistory(
 	text string,
@@ -1732,35 +1825,42 @@ func buildReplyFromHistory(
 	humanWords := extractConversationWords(previousHumanText)
 	daseiWords := extractConversationWords(previousDaseiText)
 
-	conversationWords := make([]string, 0)
+	// だせいへの訂正・ツッコミを最優先する。
+	if previousDaseiText != "" {
+		correctingDasei :=
+			strings.HasPrefix(text, "いや") ||
+				strings.Contains(text, "違う") ||
+				strings.Contains(text, "ちゃう")
 
-	conversationWords = append(conversationWords, humanWords...)
-	conversationWords = append(conversationWords, daseiWords...)
-	conversationWords = append(conversationWords, currentWords...)
+		if correctingDasei {
+			return buildDaseiCorrectionReply(
+				text,
+				previousHumanText,
+				previousDaseiText,
+			)
+		}
+	}
 
-	seen := make(map[string]bool)
-	uniqueWords := make([]string, 0, len(conversationWords))
-
-	for _, word := range conversationWords {
-		if seen[word] {
-			continue
+	continued := false
+	// 直前の人間発言と共通する語があれば会話継続。
+	for _, humanWord := range humanWords {
+		for _, currentWord := range currentWords {
+			if humanWord == currentWord {
+				continued = true
+				break
+			}
 		}
 
-		seen[word] = true
-		uniqueWords = append(uniqueWords, word)
+		if continued {
+			break
+		}
 	}
 
-	if len(uniqueWords) == 0 {
-		return ""
-	}
-	// 直前の人間の発言がある場合は、現在の発言と合わせて
-	// 会話の流れを判断する。
-	if previousHumanText != "" {
-		continued := previousHumanText != "" && previousDaseiText != ""
-
-		for _, humanWord := range humanWords {
+	// 直前のだせい発言と共通する語も確認する。
+	if !continued {
+		for _, daseiWord := range daseiWords {
 			for _, currentWord := range currentWords {
-				if humanWord == currentWord {
+				if daseiWord == currentWord {
 					continued = true
 					break
 				}
@@ -1770,44 +1870,264 @@ func buildReplyFromHistory(
 				break
 			}
 		}
+	}
+	// 接続表現・応答表現なら会話の続きとして扱う。
+	if strings.Contains(text, "まだ") ||
+		strings.HasPrefix(text, "でも") ||
+		strings.HasPrefix(text, "せや") ||
+		strings.HasPrefix(text, "そう") ||
+		strings.HasPrefix(text, "なら") ||
+		strings.HasPrefix(text, "じゃあ") ||
+		strings.HasPrefix(text, "それ") {
+		continued = true
+	}
 
-		// 「まだ」「でも」「いや」などは、
-		// 同じ単語がなくても直前の話の続きとして扱う。
-		if strings.Contains(text, "まだ") ||
-			strings.HasPrefix(text, "でも") ||
-			strings.HasPrefix(text, "いや") ||
-			strings.HasPrefix(text, "せや") ||
-			strings.HasPrefix(text, "そう") {
-			continued = true
-		}
+	// 直前のだせいが質問していたら、
+	// 次の人間発言は基本的にその回答として扱う。
+	if previousDaseiText != "" &&
+		(strings.Contains(previousDaseiText, "？") ||
+			strings.Contains(previousDaseiText, "?")) {
+		continued = true
+	}
 
-		if continued {
-			correctingDasei := false
+	if !continued {
+		return ""
+	}
 
-			if previousDaseiText != "" {
-				if strings.HasPrefix(text, "いや") ||
-					strings.Contains(text, "違う") ||
-					strings.Contains(text, "ちゃう") {
-					correctingDasei = true
-				}
-			}
+	return buildDaseiContinuationReply(
+		text,
+		previousHumanText,
+		previousDaseiText,
+	)
+}
+func isQuestionText(text string) bool {
+	text = strings.TrimSpace(text)
 
-			if correctingDasei {
-				return buildDaseiCorrectionReply(
-					text,
-					previousHumanText,
-					previousDaseiText,
-				)
-			}
-			return buildDaseiContinuationReply(
-				text,
-				previousHumanText,
-				previousDaseiText,
-			)
+	if text == "" {
+		return false
+	}
+
+	if strings.Contains(text, "？") ||
+		strings.Contains(text, "?") {
+		return true
+	}
+
+	for _, ending := range []string{
+		"かな",
+		"かね",
+		"なの",
+		"なん",
+		"んか",
+		"ん？",
+	} {
+		if strings.HasSuffix(text, ending) {
+			return true
 		}
 	}
 
-	return ""
+	return false
+}
+func buildReplyToQuestion(
+	text string,
+	topic string,
+) string {
+	text = strings.TrimSpace(text)
+	topic = strings.TrimSpace(topic)
+
+	if text == "" {
+		return ""
+	}
+
+	tokens := wakati.Tokenize(text)
+
+	evaluation := ""
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		if features[0] == "形容詞" {
+			evaluation = word
+			break
+		}
+	}
+	action := ""
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		if features[0] == "動詞" {
+			action = word
+
+			if len(features) > 6 {
+				base := strings.TrimSpace(features[6])
+				if base != "" && base != "*" {
+					action = base
+				}
+			}
+
+			break
+		}
+	}
+	if evaluation != "" {
+		replies := []string{
+			topic + "はどうやろな。だせいはまだ分からん。",
+			"だせいは" + topic + "が" + evaluation + "かまでは分からんな。",
+			topic + "か。実際どうなんやろな。",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
+
+	if action != "" {
+		switch action {
+		case "知る", "分かる":
+			if topic == "" {
+				return "それはだせいもよく分からんな。"
+			}
+			return topic + "か。だせいも詳しくは知らんな。"
+		}
+
+		if topic == "" {
+			return "だせいはまだやな。"
+		}
+
+		return topic + "か。だせいはまだやな。"
+	}
+	if topic == "" {
+		return "どうなんやろな。"
+	}
+
+	return topic + "のことか。"
+}
+func buildReplyFromCurrentText(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	words := extractConversationWords(text)
+	if len(words) == 0 {
+		return "そうなんや。"
+	}
+
+	topic := ""
+
+	tokens := wakati.Tokenize(text)
+
+	var nounParts []string
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" ||
+			word == "BOS" ||
+			word == "EOS" ||
+			isPolishSymbol(word) {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		if features[0] == "名詞" {
+			nounParts = append(nounParts, word)
+			continue
+		}
+
+		if len(nounParts) > 0 {
+			break
+		}
+	}
+
+	if len(nounParts) > 0 {
+		topic = strings.Join(nounParts, "")
+	}
+
+	if topic == "" {
+		topic = words[rand.Intn(len(words))]
+	}
+	evaluation := ""
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		if features[0] == "形容詞" {
+			evaluation = word
+			break
+		}
+	}
+	action := ""
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		if features[0] == "動詞" {
+			action = word
+
+			if len(features) > 6 {
+				base := strings.TrimSpace(features[6])
+				if base != "" && base != "*" {
+					action = base
+				}
+			}
+
+			break
+		}
+	}
+	if isQuestionText(text) {
+		return buildReplyToQuestion(text, topic)
+	}
+	if evaluation != "" {
+		replies := []string{
+			topic + "ってそんなに" + evaluation + "ん？",
+			topic + "が" + evaluation + "ってことか。",
+			topic + "、" + evaluation + "んやね。",
+		}
+
+		return replies[rand.Intn(len(replies))]
+	}
+	if action != "" {
+		return topic + "、" + action + "んやね。"
+	}
+	return topic + "の話なんやね。"
 }
 func generateRandomDaseiDraft(text string, threadContext ...string) string {
 	text = strings.TrimSpace(text)
@@ -1942,15 +2262,7 @@ func generateRandomDaseiDraft(text string, threadContext ...string) string {
 		return replies[rand.Intn(len(replies))]
 	}
 
-	replies := []string{
-		"そうなんや。そう聞くとちょっと気になるな。",
-		"なるほどなあ。そういうことならなんとなく分かる。",
-		"へえ、そうなんやね。だせいはそこまで考えてなかった。",
-		"そういう話なんか。なんかちょっと面白いな。",
-		"たしかに、そういうこともあるか。だせいは知らんかった。",
-	}
-
-	return replies[rand.Intn(len(replies))]
+	return buildReplyFromCurrentText(text)
 }
 func generateReplyWithWebCheck(text string) string {
 	// まず、だせいの雑な返事を作る
