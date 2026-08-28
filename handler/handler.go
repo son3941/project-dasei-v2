@@ -537,23 +537,32 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			}
 		}
 		slog.Info("before GenerateReply")
-		reply := GenerateReplyWithThread(
+
+		nickname := getMemberNickname(userID)
+
+		reply, usedGroq := GenerateReplyWithGroq(
+			authCtx,
 			text,
 			isMention,
 			threadPosts,
 			h.daseiCreatorID,
+			nickname,
 		)
 
-		// ニックネーム登録済みの相手なら、返信の頭で呼ぶ。
-		nickname := getMemberNickname(userID)
-		if nickname != "" &&
+		if !usedGroq &&
+			nickname != "" &&
 			rand.Intn(100) < 50 &&
-			!strings.HasPrefix(reply, nickname+"、") {
+			!strings.Contains(reply, nickname) {
 
 			reply = nickname + "、" + reply
 		}
 
-		reply = ensureDaseiReplyLength(reply, text)
+		if !usedGroq {
+			reply = ensureDaseiReplyLength(
+				reply,
+				text,
+			)
+		}
 
 		if reply == "" {
 			return nil
@@ -4550,6 +4559,153 @@ func GenerateReplyWithThread(
 		text,
 		threadContext,
 	)
+}
+func GenerateReplyWithGroq(
+	ctx context.Context,
+	text string,
+	isMention bool,
+	threadPosts []*modelv1.Post,
+	daseiCreatorID string,
+	nickname string,
+) (string, bool) {
+
+	text = strings.TrimSpace(text)
+
+	var threadHistory []string
+
+	for _, post := range threadPosts {
+		if post == nil {
+			continue
+		}
+
+		postText := strings.TrimSpace(post.GetText())
+		if postText == "" || postText == text {
+			continue
+		}
+
+		speaker := "人間"
+
+		if daseiCreatorID != "" &&
+			post.GetCreatorId() == daseiCreatorID {
+			speaker = "だせい"
+		}
+
+		threadHistory = append(
+			threadHistory,
+			speaker+": "+postText,
+		)
+	}
+	if isNicknameCommand(text) ||
+		(strings.HasPrefix(text, "だせい、") &&
+			strings.Contains(text, "は") &&
+			strings.Contains(text, "だよ")) {
+
+		return GenerateReplyWithThread(
+			text,
+			isMention,
+			threadPosts,
+			daseiCreatorID,
+		), false
+	}
+
+	if strings.Contains(text, "何の話") ||
+		strings.Contains(text, "なんの話") ||
+		strings.Contains(text, "何話してた") ||
+		strings.Contains(text, "なんの話してた") {
+
+		return GenerateReplyWithThread(
+			text,
+			isMention,
+			threadPosts,
+			daseiCreatorID,
+		), false
+	}
+
+	roll := rand.Intn(100)
+
+	// 20%：インプレゾンビ
+	if roll < 20 {
+		mode := rand.Intn(100)
+
+		switch {
+		case mode < 30:
+			return finalizeDaseiReply(
+				text,
+				zombieEnglish(),
+			), false
+
+		case mode < 60:
+			return finalizeDaseiReply(
+				text,
+				zombieJapanese(),
+			), false
+
+		default:
+			return finalizeDaseiReply(
+				text,
+				zombieReply(text),
+			), false
+		}
+	}
+	// 20%：怪文書
+	if roll < 40 {
+		communityWords := getLearnedMaterials()
+
+		result := makeKaibunsho(
+			text,
+			communityWords,
+		)
+
+		reply := limitKaibunshoLength(
+			result.Text,
+		)
+
+		if strings.TrimSpace(reply) != "" {
+			slog.Info(
+				"reply mode kaibunsho",
+				slog.String("mode", string(result.Mode)),
+				slog.Int("level", result.Level),
+				slog.Int("mixRate", result.MixRate),
+				slog.Int("contamRate", result.ContamRate),
+			)
+
+			return reply, false
+		}
+	}
+
+	// 60%：Groq
+	reply, err := generateGroqReply(
+		ctx,
+		text,
+		threadHistory,
+		nickname,
+	)
+
+	if err == nil &&
+		strings.TrimSpace(reply) != "" {
+
+		slog.Info(
+			"reply mode groq",
+			slog.String("reply", reply),
+		)
+
+		return reply, true
+	}
+	// Groq失敗時は再試行せず、
+	// 従来の返信処理へ退避する。
+	if err != nil {
+		slog.Error(
+			"groq reply failed",
+			slog.String("error", err.Error()),
+		)
+	}
+
+	return GenerateReplyWithThread(
+		text,
+		isMention,
+		threadPosts,
+		daseiCreatorID,
+	), false
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
