@@ -555,7 +555,7 @@ func makeKaibunsho(
 
 	parts = append(parts, extraLines...)
 
-	text := strings.Join(parts, " ")
+	text := strings.Join(parts, "\n")
 
 	if len(communityWords) > 0 {
 		hasCommunityWord := false
@@ -574,7 +574,7 @@ func makeKaibunsho(
 			)
 
 			if word != "" {
-				text = strings.TrimSpace(text + " " + word)
+				text = strings.TrimSpace(text + "\n" + word)
 			}
 		}
 	}

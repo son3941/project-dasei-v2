@@ -43,6 +43,29 @@ var (
 	members   map[string]string
 	membersMu sync.RWMutex
 )
+var kaibunshoMutterCountMu sync.Mutex
+
+var kaibunshoMutterCountByCommunity = map[string]int{}
+
+func shouldPostTiredDasei(communityID string) bool {
+	communityID = strings.TrimSpace(communityID)
+	if communityID == "" {
+		return false
+	}
+
+	kaibunshoMutterCountMu.Lock()
+	defer kaibunshoMutterCountMu.Unlock()
+
+	kaibunshoMutterCountByCommunity[communityID]++
+
+	if kaibunshoMutterCountByCommunity[communityID] >= 10 {
+		kaibunshoMutterCountByCommunity[communityID] = 0
+		return true
+	}
+
+	return false
+}
+
 var wakati *tokenizer.Tokenizer
 
 func init() {
@@ -141,6 +164,8 @@ type Handler struct {
 	authenticator auth.Authenticator
 	communityID   string
 	communityIDs  []string
+
+	daseiCreatorID string
 }
 
 // NewHandler creates a new Handler.
@@ -243,29 +268,47 @@ func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
 		return nil
 	}
 
-	reply := createMutter("")
-	reply, style := randomStyle(reply)
-	reply = polishDaseiMutter(reply, style)
-	reply = normalizeDaseiPostLength(reply)
+	var reply string
+	var style string
 
-	communityWords := getLearnedMaterials()
+	if shouldPostTiredDasei(communityID) {
+		material := strings.TrimSpace(getRandomLearnedMaterial())
 
-	kaibunsho := makeKaibunsho(reply, communityWords)
-	reply = limitKaibunshoLength(kaibunsho.Text)
+		if material != "" {
+			reply = material + "…"
 
-	slog.Info("kaibunsho",
-		slog.String("communityId", communityID),
-		slog.String("mode", string(kaibunsho.Mode)),
-		slog.Int("level", kaibunsho.Level),
-		slog.Int("mixRate", kaibunsho.MixRate),
-		slog.Int("contamRate", kaibunsho.ContamRate),
-		slog.String("text", reply),
-	)
+			slog.Info("tired dasei",
+				slog.String("communityId", communityID),
+				slog.String("text", reply),
+			)
+		}
+	}
 
-	slog.Info("mutter style",
-		slog.String("communityId", communityID),
-		slog.String("style", style),
-	)
+	if reply == "" {
+		reply = createMutter("")
+		reply, style = randomStyle(reply)
+		reply = polishDaseiMutter(reply, style)
+		reply = normalizeDaseiPostLength(reply)
+
+		communityWords := getLearnedMaterials()
+
+		kaibunsho := makeKaibunsho(reply, communityWords)
+		reply = limitKaibunshoLength(kaibunsho.Text)
+
+		slog.Info("kaibunsho",
+			slog.String("communityId", communityID),
+			slog.String("mode", string(kaibunsho.Mode)),
+			slog.Int("level", kaibunsho.Level),
+			slog.Int("mixRate", kaibunsho.MixRate),
+			slog.Int("contamRate", kaibunsho.ContamRate),
+			slog.String("text", reply),
+		)
+
+		slog.Info("mutter style",
+			slog.String("communityId", communityID),
+			slog.String("style", style),
+		)
+	}
 
 	if reply == "" {
 		return nil
@@ -498,7 +541,17 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			text,
 			isMention,
 			threadPosts,
+			h.daseiCreatorID,
 		)
+
+		// ニックネーム登録済みの相手なら、返信の頭で呼ぶ。
+		nickname := getMemberNickname(userID)
+		if nickname != "" &&
+			rand.Intn(100) < 50 &&
+			!strings.HasPrefix(reply, nickname+"、") {
+
+			reply = nickname + "、" + reply
+		}
 
 		reply = ensureDaseiReplyLength(reply, text)
 
@@ -522,8 +575,10 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 				},
 			)
 			if err == nil && resp != nil && resp.GetPost() != nil {
+				h.daseiCreatorID = resp.GetPost().GetCreatorId()
+
 				slog.Info("dasei reply creator",
-					slog.String("creatorId", resp.GetPost().GetCreatorId()),
+					slog.String("creatorId", h.daseiCreatorID),
 				)
 			}
 		} else {
@@ -1508,36 +1563,310 @@ func generateNaturalReply(text string) string {
 		"それは気になるね",
 	)
 }
-func generateRandomDaseiDraft(text string, threadContext ...string) string {
+func extractConversationWords(text string) []string {
 	text = strings.TrimSpace(text)
-	context := strings.TrimSpace(strings.Join(threadContext, " "))
-	var contextParts []string
-	if context != "" {
-		for _, part := range strings.Split(context, "\n") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				contextParts = append(contextParts, part)
+	if text == "" {
+		return nil
+	}
+
+	tokens := wakati.Tokenize(text)
+
+	var words []string
+
+	for _, token := range tokens {
+		word := strings.TrimSpace(token.Surface)
+
+		if word == "" ||
+			word == "BOS" ||
+			word == "EOS" ||
+			isPolishSymbol(word) {
+			continue
+		}
+
+		if len([]rune(word)) < 2 {
+			continue
+		}
+
+		features := token.Features()
+		if len(features) == 0 {
+			continue
+		}
+
+		pos := features[0]
+
+		switch pos {
+		case "名詞", "動詞", "形容詞", "副詞":
+			words = append(words, word)
+		}
+	}
+
+	return words
+}
+func hasSharedConversationWord(a, b []string) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+
+	for _, wordA := range a {
+		for _, wordB := range b {
+			if wordA == wordB {
+				return true
 			}
 		}
+	}
+
+	return false
+}
+func buildDaseiCorrectionReply(
+	text string,
+	previousHumanText string,
+	previousDaseiText string,
+) string {
+	text = strings.TrimSpace(text)
+	previousHumanText = strings.TrimSpace(previousHumanText)
+	previousDaseiText = strings.TrimSpace(previousDaseiText)
+
+	if text == "" || previousDaseiText == "" {
+		return ""
+	}
+
+	// 訂正の先頭語だけ外して、相手が実際に言っている内容は壊さず残す。
+	correctedText := text
+
+	for _, prefix := range []string{
+		"いや、",
+		"いや",
+		"でも、",
+		"でも",
+	} {
+		if strings.HasPrefix(correctedText, prefix) {
+			correctedText = strings.TrimSpace(
+				strings.TrimPrefix(correctedText, prefix),
+			)
+			break
+		}
+	}
+
+	correctedText = strings.Trim(correctedText, " 、。！？")
+
+	if correctedText == "" {
+		correctedText = previousHumanText
+	}
+
+	if correctedText == "" {
+		return "だせい勘違いしてたわ。"
+	}
+
+	return "そっか、" + correctedText + "。さっきはだせい勘違いしてたわ。"
+}
+func buildDaseiContinuationReply(
+	text string,
+	previousHumanText string,
+	previousDaseiText string,
+) string {
+	text = strings.TrimSpace(text)
+	previousHumanText = strings.TrimSpace(previousHumanText)
+	previousDaseiText = strings.TrimSpace(previousDaseiText)
+
+	if text == "" {
+		return ""
+	}
+
+	cleanText := strings.Trim(text, " 、。！？")
+
+	if cleanText == "" {
+		return ""
+	}
+
+	// 会話末尾だけ整理して、元の内容は壊さない。
+	for _, suffix := range []string{
+		"んよ",
+		"んだよ",
+		"んやで",
+		"んだ",
+		"よ",
+		"ね",
+	} {
+		if strings.HasSuffix(cleanText, suffix) {
+			cleanText = strings.TrimSpace(
+				strings.TrimSuffix(cleanText, suffix),
+			)
+			break
+		}
+	}
+
+	if cleanText == "" {
+		return ""
+	}
+
+	prefix := "そっか、"
+
+	// 直前のだせいが質問していた場合は、
+	// 今の発言をその質問への回答として受け取る。
+	if previousDaseiText != "" &&
+		(strings.Contains(previousDaseiText, "？") ||
+			strings.Contains(previousDaseiText, "?")) {
+		prefix = "なるほど、"
+	}
+
+	return prefix + cleanText + "んやね。"
+}
+func buildReplyFromHistory(
+	text string,
+	previousHumanText string,
+	previousDaseiText string,
+) string {
+	text = strings.TrimSpace(text)
+	previousHumanText = strings.TrimSpace(previousHumanText)
+	previousDaseiText = strings.TrimSpace(previousDaseiText)
+
+	if text == "" {
+		return ""
+	}
+
+	if previousHumanText == "" && previousDaseiText == "" {
+		return ""
+	}
+
+	currentWords := extractConversationWords(text)
+	humanWords := extractConversationWords(previousHumanText)
+	daseiWords := extractConversationWords(previousDaseiText)
+
+	conversationWords := make([]string, 0)
+
+	conversationWords = append(conversationWords, humanWords...)
+	conversationWords = append(conversationWords, daseiWords...)
+	conversationWords = append(conversationWords, currentWords...)
+
+	seen := make(map[string]bool)
+	uniqueWords := make([]string, 0, len(conversationWords))
+
+	for _, word := range conversationWords {
+		if seen[word] {
+			continue
+		}
+
+		seen[word] = true
+		uniqueWords = append(uniqueWords, word)
+	}
+
+	if len(uniqueWords) == 0 {
+		return ""
+	}
+	// 直前の人間の発言がある場合は、現在の発言と合わせて
+	// 会話の流れを判断する。
+	if previousHumanText != "" {
+		continued := previousHumanText != "" && previousDaseiText != ""
+
+		for _, humanWord := range humanWords {
+			for _, currentWord := range currentWords {
+				if humanWord == currentWord {
+					continued = true
+					break
+				}
+			}
+
+			if continued {
+				break
+			}
+		}
+
+		// 「まだ」「でも」「いや」などは、
+		// 同じ単語がなくても直前の話の続きとして扱う。
+		if strings.Contains(text, "まだ") ||
+			strings.HasPrefix(text, "でも") ||
+			strings.HasPrefix(text, "いや") ||
+			strings.HasPrefix(text, "せや") ||
+			strings.HasPrefix(text, "そう") {
+			continued = true
+		}
+
+		if continued {
+			correctingDasei := false
+
+			if previousDaseiText != "" {
+				if strings.HasPrefix(text, "いや") ||
+					strings.Contains(text, "違う") ||
+					strings.Contains(text, "ちゃう") {
+					correctingDasei = true
+				}
+			}
+
+			if correctingDasei {
+				return buildDaseiCorrectionReply(
+					text,
+					previousHumanText,
+					previousDaseiText,
+				)
+			}
+			return buildDaseiContinuationReply(
+				text,
+				previousHumanText,
+				previousDaseiText,
+			)
+		}
+	}
+
+	return ""
+}
+func generateRandomDaseiDraft(text string, threadContext ...string) string {
+	text = strings.TrimSpace(text)
+
+	var humanContext string
+	var daseiContext string
+
+	if len(threadContext) > 1 {
+		humanContext = strings.TrimSpace(threadContext[1])
+	}
+	if len(threadContext) > 2 {
+		daseiContext = strings.TrimSpace(threadContext[2])
+	}
+
+	var previousHumanText string
+	if humanContext != "" {
+		humanParts := strings.Split(humanContext, "\n")
+		skippedCurrent := false
+
+		for i := len(humanParts) - 1; i >= 0; i-- {
+			part := strings.TrimSpace(humanParts[i])
+			if part == "" {
+				continue
+			}
+
+			if !skippedCurrent && part == text {
+				skippedCurrent = true
+				continue
+			}
+
+			previousHumanText = part
+			break
+		}
+	}
+
+	var previousDaseiText string
+	if daseiContext != "" {
+		daseiParts := strings.Split(daseiContext, "\n")
+		for i := len(daseiParts) - 1; i >= 0; i-- {
+			part := strings.TrimSpace(daseiParts[i])
+			if part != "" {
+				previousDaseiText = part
+				break
+			}
+		}
+	}
+	historyReply := buildReplyFromHistory(
+		text,
+		previousHumanText,
+		previousDaseiText,
+	)
+
+	if historyReply != "" {
+		return historyReply
 	}
 	if text == "" {
 		return ""
 	}
-	// 会話履歴がある場合、直前までの発言を確認する。
-	var previousText string
-	if len(contextParts) > 0 {
-		previousText = contextParts[len(contextParts)-1]
-	}
-	// 会話が続いている場合は、直前の流れを踏まえて返す。
-	if previousText != "" &&
-		(strings.Contains(text, "まだ") ||
-			strings.HasPrefix(text, "でも") ||
-			strings.HasPrefix(text, "いや") ||
-			strings.HasPrefix(text, "せや") ||
-			strings.HasPrefix(text, "そう")) {
 
-		return "さっき「" + previousText + "」って言ってたけど、" + text + "ってことなんやね。"
-	}
 	// 「どうした？」系。
 	// 質問への回答ではなく、直前の自分の発言について聞かれている。
 	if strings.Contains(text, "どうした") ||
@@ -3691,6 +4020,21 @@ func isNGAccount(account string) bool {
 	}
 	return false
 }
+func getMemberNickname(userID string) string {
+	membersMu.RLock()
+	name := members[userID]
+	membersMu.RUnlock()
+
+	if name == "" {
+		return ""
+	}
+
+	nicknameMu.RLock()
+	nickname := nicknames[name]
+	nicknameMu.RUnlock()
+
+	return strings.TrimSpace(nickname)
+}
 func rememberMember(id, name string) {
 	name = strings.TrimSpace(name)
 	if isNGMember(name) {
@@ -3804,8 +4148,15 @@ func (h *Handler) getThreadPosts(
 
 	return reversed, nil
 }
-func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1.Post) string {
+func GenerateReplyWithThread(
+	text string,
+	isMention bool,
+	threadPosts []*modelv1.Post,
+	daseiCreatorID string,
+) string {
 	var contextParts []string
+	var humanContextParts []string
+	var daseiContextParts []string
 
 	for _, post := range threadPosts {
 		if post == nil {
@@ -3818,9 +4169,20 @@ func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1
 		}
 
 		contextParts = append(contextParts, postText)
+
+		if daseiCreatorID != "" && post.GetCreatorId() == daseiCreatorID {
+			daseiContextParts = append(daseiContextParts, postText)
+		} else {
+			humanContextParts = append(humanContextParts, postText)
+		}
 	}
 
 	threadContext := strings.Join(contextParts, "\n")
+	humanThreadContext := strings.Join(humanContextParts, "\n")
+	daseiThreadContext := strings.Join(daseiContextParts, "\n")
+
+	_ = humanThreadContext
+	_ = daseiThreadContext
 	normalized := strings.TrimSpace(text)
 
 	if strings.Contains(normalized, "何の話") ||
@@ -3854,7 +4216,10 @@ func GenerateReplyWithThread(text string, isMention bool, threadPosts []*modelv1
 		}
 	}
 
-	return createReply(text, threadContext)
+	return createReply(
+		text,
+		threadContext,
+	)
 }
 func GenerateReply(text string, isMention bool) string {
 	if isMention {
