@@ -4377,18 +4377,29 @@ func getMemberNickname(userID string) string {
 	if name == "" {
 		return ""
 	}
-
+	slog.Info("nickname lookup",
+		slog.String("userID", userID),
+		slog.String("memberName", name),
+	)
 	// まずメモリを見る。
 	nicknameMu.RLock()
 	nickname := strings.TrimSpace(nicknames[name])
 	nicknameMu.RUnlock()
 
 	if nickname != "" {
+		slog.Info("nickname cache hit",
+			slog.String("memberName", name),
+			slog.String("nickname", nickname),
+		)
 		return nickname
 	}
 
 	// メモリに無ければDBから復元する。
 	savedNickname, err := LoadNickname(name)
+	slog.Info("nickname loaded",
+		slog.String("memberName", name),
+		slog.String("nickname", savedNickname),
+	)
 	if err != nil {
 		slog.Error("LoadNickname failed",
 			slog.String("name", name),
