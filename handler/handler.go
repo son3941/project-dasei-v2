@@ -4645,16 +4645,23 @@ func GenerateReplyWithGroq(
 			speaker+": "+postText,
 		)
 	}
-	if isNicknameCommand(text) ||
-		(strings.HasPrefix(text, "だせい、") &&
-			strings.Contains(text, "は") &&
-			strings.Contains(text, "だよ")) {
+	normalized := strings.TrimSpace(text)
 
-		return GenerateReplyWithThread(
+	isNicknameTeach :=
+		strings.HasPrefix(normalized, "だせい、") &&
+			strings.Contains(normalized, "さんは") &&
+			strings.HasSuffix(normalized, "さんだよ")
+
+	isKnowledgeTeach :=
+		strings.HasPrefix(normalized, "だせい、") &&
+			!strings.Contains(normalized, "さんは") &&
+			strings.Contains(normalized, "は") &&
+			strings.HasSuffix(normalized, "だよ")
+
+	if isNicknameTeach || isKnowledgeTeach {
+		return createReply(
 			text,
-			isMention,
-			threadPosts,
-			daseiCreatorID,
+			strings.Join(threadHistory, "\n"),
 		), false
 	}
 
