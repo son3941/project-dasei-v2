@@ -35,16 +35,6 @@ func replyFromMemory(text string) string {
 		return ""
 	}
 
-	if time.Since(memory.LearnedAt) > 10*24*time.Hour {
-		memoryMu.RUnlock()
-
-		memoryMu.Lock()
-		delete(memories, matchedKey)
-		memoryMu.Unlock()
-
-		return ""
-	}
-
 	memoryMu.RUnlock()
 
 	memoryMu.Lock()
@@ -76,4 +66,60 @@ func replyFromMemory(text string) string {
 		slog.String("original", text),
 	)
 	return addEmoji(reply)
+}
+func getRelevantMemory(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	memoryMu.RLock()
+
+	var memory Memory
+	var matchedKey string
+	found := false
+
+	for key, m := range memories {
+		key = strings.TrimSpace(key)
+
+		if key == "" ||
+			!strings.Contains(text, key) {
+			continue
+		}
+
+		// 同じ記憶を短時間に何度も使わない。
+		if !m.LastReplyAt.IsZero() &&
+			time.Since(m.LastReplyAt) < 5*time.Minute {
+			continue
+		}
+
+		memory = m
+		matchedKey = key
+		found = true
+		break
+	}
+
+	memoryMu.RUnlock()
+
+	if !found {
+		return ""
+	}
+
+	value := strings.TrimSpace(memory.Value)
+	if value == "" {
+		return ""
+	}
+
+	// 使用時刻だけ更新する。
+	memoryMu.Lock()
+	memory.LastReplyAt = time.Now()
+	memories[matchedKey] = memory
+	memoryMu.Unlock()
+
+	slog.Info("relevant memory found",
+		slog.String("key", matchedKey),
+		slog.String("value", value),
+	)
+
+	return matchedKey + "＝" + value
 }

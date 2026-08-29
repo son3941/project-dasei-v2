@@ -4731,14 +4731,22 @@ func GenerateReplyWithGroq(
 	}
 
 	// 60%：Groq
+	memoryHint := getRelevantMemory(text)
+
 	slog.Info("nickname before groq",
 		slog.String("nickname", nickname),
 	)
+
+	slog.Info("memory before groq",
+		slog.String("memory", memoryHint),
+	)
+
 	reply, err := generateGroqReply(
 		ctx,
 		text,
 		threadHistory,
 		nickname,
+		memoryHint,
 	)
 
 	if err == nil &&

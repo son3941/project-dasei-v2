@@ -41,6 +41,7 @@ func generateGroqReply(
 	text string,
 	threadPosts []string,
 	nickname string,
+	memoryHint string,
 ) (string, error) {
 
 	apiKey := strings.TrimSpace(os.Getenv("GROQ_API_KEY"))
@@ -50,7 +51,7 @@ func generateGroqReply(
 
 	text = strings.TrimSpace(text)
 	nickname = strings.TrimSpace(nickname)
-
+	memoryHint = strings.TrimSpace(memoryHint)
 	if text == "" {
 		return "", fmt.Errorf("reply text is empty")
 	}
@@ -87,7 +88,11 @@ func generateGroqReply(
 			nickname +
 			"」。今回の返信では必ず一度、会話として自然な位置でこのニックネームを呼ぶ。毎回文頭に置く必要はない。"
 	}
-
+	if memoryHint != "" {
+		systemPrompt += "\n- だせいが以前覚えた、この発言に関係する記憶があります：「" +
+			memoryHint +
+			"」。今回の返信では、この記憶を会話として自然に取り入れる。『覚えています』『記憶によると』など説明口調にはしない。記憶の内容をそのまま棒読みせず、だせいらしい自然な返事にする。"
+	}
 	messages := []groqMessage{
 		{
 			Role:    "system",
