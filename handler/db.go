@@ -219,6 +219,7 @@ func ClearMemories() error {
 DELETE FROM memories;
 DELETE FROM posts;
 DELETE FROM nicknames;
+DELETE FROM learned_pairs;
 `)
 	rows, _ := result.RowsAffected()
 	slog.Info("ClearMemories",
@@ -244,22 +245,18 @@ func SaveLearnedPair(key, value string) error {
 		return err
 	}
 
-	_, err := db.Exec(
-		`DELETE FROM learned_pairs WHERE pair_key = $1`,
+	_, err := db.Exec(`
+INSERT INTO learned_pairs (pair_key, pair_value)
+VALUES ($1, $2)
+ON CONFLICT (pair_key, pair_value)
+DO NOTHING
+`,
 		key,
+		value,
 	)
-	if err != nil {
-		return err
-	}
 
-	_, err = db.Exec(
-		`INSERT INTO learned_pairs (pair_key, pair_value)
-         VALUES ($1, $2)`,
-		key, value,
-	)
 	return err
 }
-
 func LoadLearnedPairs() ([]LearnedPair, error) {
 	if err := initDB(); err != nil {
 		return nil, err
