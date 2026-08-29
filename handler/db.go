@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	_ "github.com/lib/pq"
@@ -105,7 +106,63 @@ CREATE TABLE IF NOT EXISTS learned_pairs (
 		)
 		return err
 	}
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS nicknames (
+    member_name TEXT PRIMARY KEY,
+    nickname TEXT NOT NULL
+)
+`)
+	if err != nil {
+		slog.Error("CREATE nicknames TABLE failed",
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
 	return nil
+}
+func SaveNickname(name, nickname string) error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
+	_, err := db.Exec(`
+INSERT INTO nicknames(member_name, nickname)
+VALUES ($1, $2)
+ON CONFLICT (member_name)
+DO UPDATE SET
+    nickname = EXCLUDED.nickname
+`,
+		name,
+		nickname,
+	)
+
+	return err
+}
+
+func LoadNickname(name string) (string, error) {
+	if err := initDB(); err != nil {
+		return "", err
+	}
+
+	var nickname string
+
+	err := db.QueryRow(`
+SELECT nickname
+FROM nicknames
+WHERE member_name = $1
+`,
+		name,
+	).Scan(&nickname)
+
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(nickname), nil
 }
 func SaveMemory(key, value string) error {
 	if err := initDB(); err != nil {
@@ -161,6 +218,7 @@ func ClearMemories() error {
 	result, err := db.Exec(`
 DELETE FROM memories;
 DELETE FROM posts;
+DELETE FROM nicknames;
 `)
 	rows, _ := result.RowsAffected()
 	slog.Info("ClearMemories",

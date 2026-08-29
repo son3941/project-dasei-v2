@@ -3450,7 +3450,17 @@ func createReply(text string, threadContext ...string) string {
 			nicknameMu.Lock()
 			nicknames[name] = nickname
 			nicknameMu.Unlock()
-
+			if err := SaveNickname(name, nickname); err != nil {
+				slog.Error("SaveNickname failed",
+					slog.String("name", name),
+					slog.String("error", err.Error()),
+				)
+			} else {
+				slog.Info("SaveNickname success",
+					slog.String("name", name),
+					slog.String("nickname", nickname),
+				)
+			}
 			teachMu.Lock()
 			delete(teaches, name)
 			teachMu.Unlock()
@@ -4368,11 +4378,36 @@ func getMemberNickname(userID string) string {
 		return ""
 	}
 
+	// まずメモリを見る。
 	nicknameMu.RLock()
-	nickname := nicknames[name]
+	nickname := strings.TrimSpace(nicknames[name])
 	nicknameMu.RUnlock()
 
-	return strings.TrimSpace(nickname)
+	if nickname != "" {
+		return nickname
+	}
+
+	// メモリに無ければDBから復元する。
+	savedNickname, err := LoadNickname(name)
+	if err != nil {
+		slog.Error("LoadNickname failed",
+			slog.String("name", name),
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+
+	savedNickname = strings.TrimSpace(savedNickname)
+	if savedNickname == "" {
+		return ""
+	}
+
+	// 次回以降はDBを読まなくて済むようキャッシュする。
+	nicknameMu.Lock()
+	nicknames[name] = savedNickname
+	nicknameMu.Unlock()
+
+	return savedNickname
 }
 func rememberMember(id, name string) {
 	name = strings.TrimSpace(name)
