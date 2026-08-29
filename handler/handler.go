@@ -539,7 +539,11 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		slog.Info("before GenerateReply")
 
 		nickname := getMemberNickname(userID)
-
+		slog.Info("nickname before reply",
+			slog.String("userID", userID),
+			slog.String("displayName", displayName),
+			slog.String("nickname", nickname),
+		)
 		reply, usedGroq := GenerateReplyWithGroq(
 			authCtx,
 			text,
@@ -4720,6 +4724,9 @@ func GenerateReplyWithGroq(
 	}
 
 	// 60%：Groq
+	slog.Info("nickname before groq",
+		slog.String("nickname", nickname),
+	)
 	reply, err := generateGroqReply(
 		ctx,
 		text,
