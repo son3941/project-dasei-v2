@@ -62,14 +62,23 @@ func main() {
 	apiClient := application_apiv1.NewApplicationServiceClient(apiConn)
 
 	// Create event handler
-	communityIDs := strings.Split(cfg.CommunityIDs, ",")
-	eventHandler := handler.NewHandler(apiClient, authenticator, communityIDs...)
+	eventHandler := handler.NewHandler(apiClient, authenticator)
+
+	ctx := context.Background()
+	if err := eventHandler.SyncInstalledCommunities(ctx); err != nil {
+		log.Fatalf("failed to sync installed communities: %v", err)
+	}
+
+	logger.Info(
+		"installed communities synced",
+		"count", len(eventHandler.CommunityIDs()),
+	)
 	go func() {
 		for {
 			time.Sleep(30 * time.Second)
 
 			ctx := context.Background()
-			for _, communityID := range communityIDs {
+			for _, communityID := range eventHandler.CommunityIDs() {
 				communityID = strings.TrimSpace(communityID)
 				if communityID == "" {
 					continue
@@ -88,7 +97,7 @@ func main() {
 		for {
 			time.Sleep(3 * time.Hour)
 
-			for _, communityID := range communityIDs {
+			for _, communityID := range eventHandler.CommunityIDs() {
 				communityID = strings.TrimSpace(communityID)
 				if communityID == "" {
 					continue

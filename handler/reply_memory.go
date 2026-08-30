@@ -7,14 +7,26 @@ import (
 	"time"
 )
 
-func replyFromMemory(text string) string {
+func replyFromMemory(
+	communityID string,
+	text string,
+) string {
+	communityID = strings.TrimSpace(communityID)
+	text = strings.TrimSpace(text)
+
+	if communityID == "" || text == "" {
+		return ""
+	}
+
 	memoryMu.RLock()
+
+	communityMemories := memories[communityID]
 
 	var memory Memory
 	var matchedKey string
 	ok := false
 
-	for key, m := range memories {
+	for key, m := range communityMemories {
 		if !strings.Contains(text, key) {
 			continue
 		}
@@ -30,56 +42,80 @@ func replyFromMemory(text string) string {
 		break
 	}
 
+	memoryMu.RUnlock()
+
 	if !ok {
-		memoryMu.RUnlock()
 		return ""
 	}
 
-	memoryMu.RUnlock()
-
+	// このコミュの記憶だけ使用時刻を更新する。
 	memoryMu.Lock()
+
+	if memories[communityID] == nil {
+		memories[communityID] = make(map[string]Memory)
+	}
+
 	memory.LastReplyAt = time.Now()
-	memories[matchedKey] = memory
+	memories[communityID][matchedKey] = memory
+
 	memoryMu.Unlock()
 
 	if rand.Intn(100) < 30 {
-		name := randomMember()
+		name := randomMember(communityID)
 		if name != "" {
-			return memberPhrase(name)
+			return memberPhrase(
+				communityID,
+				name,
+			)
 		}
 	}
 
 	reply := memory.Value
 
+	// 記憶同士がつながっている場合も、
+	// 同じコミュの記憶だけを使う。
 	memoryMu.RLock()
-	if next, ok := memories[reply]; ok {
+
+	if next, exists := memories[communityID][reply]; exists {
 		reply += next.Value
 
-		if next2, ok := memories[next.Value]; ok {
+		if next2, exists := memories[communityID][next.Value]; exists {
 			reply += next2.Value
 		}
 	}
+
 	memoryMu.RUnlock()
-	slog.Info("replyFromMemory hit",
+
+	slog.Info(
+		"replyFromMemory hit",
+		slog.String("communityID", communityID),
 		slog.String("key", matchedKey),
 		slog.String("value", reply),
 		slog.String("original", text),
 	)
+
 	return addEmoji(reply)
 }
-func getRelevantMemory(text string) string {
+func getRelevantMemory(
+	communityID string,
+	text string,
+) string {
+	communityID = strings.TrimSpace(communityID)
 	text = strings.TrimSpace(text)
-	if text == "" {
+
+	if communityID == "" || text == "" {
 		return ""
 	}
 
 	memoryMu.RLock()
 
+	communityMemories := memories[communityID]
+
 	var memory Memory
 	var matchedKey string
 	found := false
 
-	for key, m := range memories {
+	for key, m := range communityMemories {
 		key = strings.TrimSpace(key)
 
 		if key == "" ||
@@ -110,13 +146,21 @@ func getRelevantMemory(text string) string {
 		return ""
 	}
 
-	// 使用時刻だけ更新する。
+	// 使用時刻を、このコミュの記憶だけ更新する。
 	memoryMu.Lock()
+
+	if memories[communityID] == nil {
+		memories[communityID] = make(map[string]Memory)
+	}
+
 	memory.LastReplyAt = time.Now()
-	memories[matchedKey] = memory
+	memories[communityID][matchedKey] = memory
+
 	memoryMu.Unlock()
 
-	slog.Info("relevant memory found",
+	slog.Info(
+		"relevant memory found",
+		slog.String("communityID", communityID),
 		slog.String("key", matchedKey),
 		slog.String("value", value),
 	)

@@ -5,18 +5,28 @@ import (
 	"strings"
 )
 
-func randomMember() string {
+func randomMember(
+	communityID string,
+) string {
 	nicknameMu.RLock()
 	defer nicknameMu.RUnlock()
 
-	if len(nicknames) == 0 {
+	communityNicknames := nicknames[communityID]
+
+	if len(communityNicknames) == 0 {
 		return ""
 	}
 
-	names := make([]string, 0, len(nicknames))
+	names := make(
+		[]string,
+		0,
+		len(communityNicknames),
+	)
 
-	for _, nickname := range nicknames {
-		if strings.TrimSpace(nickname) == "" {
+	for _, nickname := range communityNicknames {
+		nickname = strings.TrimSpace(nickname)
+
+		if nickname == "" {
 			continue
 		}
 

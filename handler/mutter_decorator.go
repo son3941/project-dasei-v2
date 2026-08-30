@@ -2,25 +2,38 @@ package handler
 
 import "math/rand"
 
-func decorateMutter(post string) string {
+func decorateMutter(
+	communityID string,
+	post string,
+) string {
 	if post == "" {
 		return ""
 	}
 
-	post = decorateMember(post)
-	post = decorateCrazy(post)
+	post = decorateMember(
+		communityID,
+		post,
+	)
+	post = decorateCrazy(
+		communityID,
+		post,
+	)
 	post = decorateEmoji(post)
 
 	return post
 }
 
-func decorateMember(post string) string {
-
+func decorateMember(
+	communityID string,
+	post string,
+) string {
 	if rand.Intn(100) >= 20 {
 		return post
 	}
 
-	name := randomMember()
+	name := randomMember(
+		communityID,
+	)
 	if name == "" {
 		return post
 	}
@@ -32,8 +45,14 @@ func decorateMember(post string) string {
 	return post + "\n\n" + name
 }
 
-func decorateCrazy(post string) string {
-	return createCrazyMutter(post)
+func decorateCrazy(
+	communityID string,
+	post string,
+) string {
+	return createCrazyMutter(
+		communityID,
+		post,
+	)
 }
 
 func decorateEmoji(post string) string {

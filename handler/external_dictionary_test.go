@@ -16,8 +16,13 @@ func TestExternalDictionary(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	const communityID = "test-community"
+
 	// 外部辞書から次の言葉を取得
-	word, ok := findNextWord("今日は")
+	word, ok := findNextWord(
+		communityID,
+		"今日は",
+	)
 
 	if !ok {
 		t.Fatal("外部辞書から言葉を取得できませんでした")
@@ -29,19 +34,27 @@ func TestExternalDictionary(t *testing.T) {
 
 	t.Logf("外部辞書から取得した言葉: %s", word)
 }
+
 func TestGenerateMemoryPostWithExternalDictionary(t *testing.T) {
 	if err := LoadExternalDictionary(); err != nil {
 		t.Fatal(err)
 	}
 
+	const communityID = "test-community"
+
 	learnedWordsMu.Lock()
+
 	oldPairs := learnedPairs
-	learnedPairs = []LearnedPair{
-		{
-			Key:   "今日は",
-			Value: "暑いね",
+
+	learnedPairs = map[string][]LearnedPair{
+		communityID: {
+			{
+				Key:   "今日は",
+				Value: "暑いね",
+			},
 		},
 	}
+
 	learnedWordsMu.Unlock()
 
 	defer func() {
@@ -50,7 +63,9 @@ func TestGenerateMemoryPostWithExternalDictionary(t *testing.T) {
 		learnedWordsMu.Unlock()
 	}()
 
-	post := generateMemoryPost()
+	post := generateMemoryPost(
+		communityID,
+	)
 
 	if post == "" {
 		t.Fatal("generateMemoryPost が空を返しました")

@@ -25,7 +25,7 @@ func mentionReply(text string) string {
 		return finalizeDaseiReply(text, reply)
 	}
 
-	return createReply(text)
+	return ""
 }
 func fixedReply(text string) string {
 

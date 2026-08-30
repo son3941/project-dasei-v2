@@ -31,26 +31,34 @@ func crazyWords() []string {
 	}
 }
 
-func createCrazyMutter(post string) string {
+func createCrazyMutter(
+	communityID string,
+	post string,
+) string {
 	if rand.Intn(100) >= 40 {
 		return post
 	}
 
+	communityID = strings.TrimSpace(communityID)
 	post = strings.TrimSpace(post)
 
-	if post == "" {
+	if communityID == "" || post == "" {
 		return ""
 	}
 
 	var result []string
 
 	result = append(result, post)
-	// 覚えている言葉を素材として混ぜる。
+
+	// このコミュで覚えている言葉を素材として混ぜる。
 	if rand.Intn(100) < 60 {
-		memoryPost := generateMemoryPost()
+		memoryPost := generateMemoryPost(
+			communityID,
+		)
 
 		if memoryPost != "" {
-			result = append(result,
+			result = append(
+				result,
 				strings.TrimSpace(memoryPost),
 			)
 		}
@@ -60,11 +68,15 @@ func createCrazyMutter(post string) string {
 	if rand.Intn(100) < 70 {
 		words := crazyWords()
 
-		result = append(result,
+		result = append(
+			result,
 			words[rand.Intn(len(words))],
 		)
 	}
-	text := strings.TrimSpace(strings.Join(result, " "))
+
+	text := strings.TrimSpace(
+		strings.Join(result, " "),
+	)
 
 	return text
 }

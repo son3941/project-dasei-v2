@@ -4,8 +4,14 @@ import (
 	"math/rand"
 )
 
-func memberPhrase(name string) string {
-	name = nicknameOf(name)
+func memberPhrase(
+	communityID string,
+	name string,
+) string {
+	name = nicknameOf(
+		communityID,
+		name,
+	)
 
 	if name == "" {
 		return ""

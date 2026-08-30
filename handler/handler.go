@@ -108,10 +108,12 @@ type LearnedPhrase struct {
 }
 
 var (
-	memories = make(map[string]Memory)
+	// communityID → key → Memory
+	memories = make(map[string]map[string]Memory)
 	memoryMu sync.RWMutex
 
-	nicknames  = make(map[string]string)
+	// communityID → memberName → nickname
+	nicknames  = make(map[string]map[string]string)
 	nicknameMu sync.RWMutex
 
 	mutterUsage = make(map[string]int)
@@ -119,9 +121,14 @@ var (
 	teaches = make(map[string]string)
 	teachMu sync.RWMutex
 )
+
 var (
-	learnedPairs   []LearnedPair
+	// communityID → learned pairs
+	learnedPairs = make(map[string][]LearnedPair)
+
+	// 現在は実質未使用。旧仕様として残す。
 	learnedPhrases []LearnedPhrase
+
 	learnedWordsMu sync.RWMutex
 )
 var (
@@ -162,35 +169,20 @@ type Handler struct {
 	logger        *slog.Logger
 	apiClient     application_apiv1.ApplicationServiceClient
 	authenticator auth.Authenticator
-	communityID   string
-	communityIDs  []string
+
+	communityMu  sync.RWMutex
+	communityIDs []string
 
 	daseiCreatorID string
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authenticator auth.Authenticator, communityID ...string) *Handler {
-	loaded, err := LoadMemories()
-	if err == nil {
-		memoryMu.Lock()
-		for k, v := range loaded {
-			memories[k] = Memory{
-				Value:     v,
-				LearnedAt: time.Now(),
-			}
-		}
-		memoryMu.Unlock()
-	}
-	pairs, pairErr := LoadLearnedPairs()
-	if pairErr != nil {
-		slog.Error("LoadLearnedPairs failed",
-			slog.String("error", pairErr.Error()),
-		)
-	} else {
-		learnedWordsMu.Lock()
-		learnedPairs = pairs
-		learnedWordsMu.Unlock()
-	}
+func NewHandler(
+	apiClient application_apiv1.ApplicationServiceClient,
+	authenticator auth.Authenticator,
+	communityID ...string,
+) *Handler {
+
 	h := &Handler{
 		logger:        slog.Default(),
 		apiClient:     apiClient,
@@ -204,13 +196,150 @@ func NewHandler(apiClient application_apiv1.ApplicationServiceClient, authentica
 		}
 
 		h.communityIDs = append(h.communityIDs, id)
+	}
 
-		if h.communityID == "" {
-			h.communityID = id
-		}
+	for _, id := range h.communityIDs {
+		h.loadCommunityMemory(id)
 	}
 
 	return h
+}
+
+func (h *Handler) loadCommunityMemory(communityID string) {
+	loaded, err := LoadMemories(communityID)
+	if err != nil {
+		slog.Error(
+			"LoadMemories failed",
+			slog.String("communityID", communityID),
+			slog.String("error", err.Error()),
+		)
+	} else {
+		memoryMu.Lock()
+
+		if memories[communityID] == nil {
+			memories[communityID] = make(map[string]Memory)
+		}
+
+		for k, v := range loaded {
+			memories[communityID][k] = Memory{
+				Value:     v,
+				LearnedAt: time.Now(),
+			}
+		}
+
+		memoryMu.Unlock()
+	}
+
+	pairs, err := LoadLearnedPairs(communityID)
+	if err != nil {
+		slog.Error(
+			"LoadLearnedPairs failed",
+			slog.String("communityID", communityID),
+			slog.String("error", err.Error()),
+		)
+	} else {
+		learnedWordsMu.Lock()
+		learnedPairs[communityID] = pairs
+		learnedWordsMu.Unlock()
+	}
+
+	slog.Info(
+		"community memory loaded",
+		slog.String("communityID", communityID),
+		slog.Int("memories", len(loaded)),
+		slog.Int("learnedPairs", len(pairs)),
+	)
+}
+func (h *Handler) FetchInstalledCommunityIDs(ctx context.Context) ([]string, error) {
+	authCtx, err := h.authenticator.AuthorizedContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var communityIDs []string
+	var cursor string
+
+	for {
+		req := &application_apiv1.GetCommunitiesUsingApplicationRequest{}
+
+		if cursor != "" {
+			req.Cursor = &cursor
+		}
+
+		resp, err := h.apiClient.GetCommunitiesUsingApplication(
+			authCtx,
+			req,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range resp.GetCommunitiesUsingApplication() {
+			community := item.GetCommunity()
+			if community == nil {
+				continue
+			}
+
+			id := strings.TrimSpace(community.GetCommunityId())
+			if id == "" {
+				continue
+			}
+
+			communityIDs = append(communityIDs, id)
+		}
+
+		nextCursor := resp.GetNextCursor()
+		if nextCursor == "" {
+			break
+		}
+
+		cursor = nextCursor
+	}
+
+	return communityIDs, nil
+}
+func (h *Handler) CommunityIDs() []string {
+	h.communityMu.RLock()
+	defer h.communityMu.RUnlock()
+
+	ids := make([]string, len(h.communityIDs))
+	copy(ids, h.communityIDs)
+
+	return ids
+}
+func (h *Handler) SyncInstalledCommunities(ctx context.Context) error {
+	ids, err := h.FetchInstalledCommunityIDs(ctx)
+	if err != nil {
+		return err
+	}
+
+	existing := make(map[string]bool)
+
+	h.communityMu.RLock()
+	for _, id := range h.communityIDs {
+		existing[id] = true
+	}
+	h.communityMu.RUnlock()
+
+	h.communityMu.Lock()
+	h.communityIDs = make([]string, len(ids))
+	copy(h.communityIDs, ids)
+	h.communityMu.Unlock()
+
+	for _, id := range ids {
+		if existing[id] {
+			continue
+		}
+
+		h.loadCommunityMemory(id)
+
+		slog.Info(
+			"installed community added",
+			slog.String("communityID", id),
+		)
+	}
+
+	return nil
 }
 func polishDaseiMutter(reply string, style string) string {
 	reply = strings.TrimSpace(reply)
@@ -272,7 +401,9 @@ func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
 	var style string
 
 	if shouldPostTiredDasei(communityID) {
-		material := strings.TrimSpace(getRandomLearnedMaterial())
+		material := getRandomLearnedMaterial(
+			communityID,
+		)
 
 		if material != "" {
 			reply = material + "…"
@@ -285,12 +416,15 @@ func (h *Handler) PostMutter(ctx context.Context, communityID string) error {
 	}
 
 	if reply == "" {
-		reply = createMutter("")
+		reply = createMutter(
+			communityID,
+			"",
+		)
 		reply, style = randomStyle(reply)
 		reply = polishDaseiMutter(reply, style)
 		reply = normalizeDaseiPostLength(reply)
 
-		communityWords := getLearnedMaterials()
+		communityWords := getLearnedMaterials(communityID)
 
 		kaibunsho := makeKaibunsho(reply, communityWords)
 		reply = limitKaibunshoLength(kaibunsho.Text)
@@ -381,7 +515,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		h.logger.Info("event", slog.Any("event", ev))
 		h.logger.Info("post data", slog.Any("post", post.GetPost()))
 		text := post.GetPost().GetText()
-
+		communityID := post.GetPost().GetCommunityId()
 		slog.Info("received text",
 			slog.String("text", text),
 		)
@@ -393,24 +527,33 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		// リセットコマンド
 		if strings.TrimSpace(text) == "だせい リセット実行" {
 
+			// このコミュの通常記憶だけ消す。
 			memoryMu.Lock()
-			memories = make(map[string]Memory)
+			delete(memories, communityID)
 			memoryMu.Unlock()
 
+			// このコミュで自動学習した語句だけ消す。
 			learnedWordsMu.Lock()
-			learnedPairs = nil
+			delete(learnedPairs, communityID)
 			learnedWordsMu.Unlock()
 
+			// このコミュのニックネームだけ消す。
 			nicknameMu.Lock()
-			nicknames = make(map[string]string)
+			delete(nicknames, communityID)
 			nicknameMu.Unlock()
 
-			if err := ClearMemories(); err != nil {
-				slog.Error("ClearMemories failed",
+			// DB側も、このコミュのデータだけ消す。
+			if err := ClearMemories(communityID); err != nil {
+				slog.Error(
+					"ClearMemories failed",
+					slog.String("communityID", communityID),
 					slog.String("error", err.Error()),
 				)
 			} else {
-				slog.Info("memories cleared")
+				slog.Info(
+					"community memories cleared",
+					slog.String("communityID", communityID),
+				)
 			}
 
 			return nil
@@ -428,7 +571,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		if displayName == "だせい" {
 			return nil
 		}
-		communityID := post.GetPost().GetCommunityId()
+
 		lastHumanPostAtMu.Lock()
 		lastHumanPostAt[communityID] = time.Now()
 		lastHumanPostAtMu.Unlock()
@@ -444,11 +587,22 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 				strings.Contains(text, "は") &&
 				strings.Contains(text, "だよ")) {
 
-			rememberKnowledge(text, displayName)
+			rememberKnowledge(
+				communityID,
+				text,
+				displayName,
+			)
 		}
 
-		if err := SavePost(text); err != nil {
-			slog.Error("SavePost failed", slog.String("error", err.Error()))
+		if err := SavePost(
+			communityID,
+			text,
+		); err != nil {
+			slog.Error(
+				"SavePost failed",
+				slog.String("communityID", communityID),
+				slog.String("error", err.Error()),
+			)
 		}
 		account := ""
 		if post.GetIssuer() != nil {
@@ -515,7 +669,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 			slog.String("type", fmt.Sprintf("%T", post.GetPost())),
 		)
 		communityID = post.GetPost().GetCommunityId()
-		h.communityID = communityID
+
 		replyTo := post.GetPost().GetPostId()
 		threadPosts, err := h.getThreadPosts(authCtx, post.GetPost())
 		if err != nil {
@@ -538,7 +692,10 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		}
 		slog.Info("before GenerateReply")
 
-		nickname := getMemberNickname(userID)
+		nickname := getMemberNickname(
+			communityID,
+			userID,
+		)
 		slog.Info("nickname before reply",
 			slog.String("userID", userID),
 			slog.String("displayName", displayName),
@@ -546,6 +703,7 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 		)
 		reply, usedGroq := GenerateReplyWithGroq(
 			authCtx,
+			communityID,
 			text,
 			isMention,
 			threadPosts,
@@ -646,6 +804,70 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 				h.logger.Info("AddStampToPost success")
 			}
 		}
+	case constv1.EventType_EVENT_TYPE_COMMUNITY_PLUGIN_MANAGED:
+		managed := ev.GetCommunityPluginManagedEvent()
+		if managed == nil {
+			return nil
+		}
+
+		community := managed.GetCommunity()
+		if community == nil {
+			return nil
+		}
+
+		communityID := strings.TrimSpace(community.GetCommunityId())
+		if communityID == "" {
+			return nil
+		}
+
+		for _, reason := range managed.GetEventReasonList() {
+			switch reason {
+
+			case constv1.EventReason_EVENT_REASON_COMMUNITY_PLUGIN_INSTALLED:
+				h.communityMu.Lock()
+
+				alreadyExists := false
+				for _, id := range h.communityIDs {
+					if id == communityID {
+						alreadyExists = true
+						break
+					}
+				}
+
+				if !alreadyExists {
+					h.communityIDs = append(h.communityIDs, communityID)
+				}
+
+				h.communityMu.Unlock()
+
+				if !alreadyExists {
+					h.loadCommunityMemory(communityID)
+
+					slog.Info(
+						"community plugin installed",
+						slog.String("communityID", communityID),
+					)
+				}
+
+			case constv1.EventReason_EVENT_REASON_COMMUNITY_PLUGIN_UNINSTALLED:
+				h.communityMu.Lock()
+
+				filtered := make([]string, 0, len(h.communityIDs))
+				for _, id := range h.communityIDs {
+					if id != communityID {
+						filtered = append(filtered, id)
+					}
+				}
+
+				h.communityIDs = filtered
+				h.communityMu.Unlock()
+
+				slog.Info(
+					"community plugin uninstalled",
+					slog.String("communityID", communityID),
+				)
+			}
+		}
 	case constv1.EventType_EVENT_TYPE_CHAT_MESSAGE_RECEIVED:
 		h.logger.Info("received CHAT_MESSAGE_RECEIVED event",
 			slog.String("event_id", ev.EventId),
@@ -666,7 +888,11 @@ func (h *Handler) Handle(ctx context.Context, ev *modelv1.Event) error {
 func shouldReplyToPost(text string, isMention bool) bool {
 	return true
 }
-func rememberKnowledge(text, displayName string) {
+func rememberKnowledge(
+	communityID string,
+	text string,
+	displayName string,
+) {
 
 	var words []string
 	displayName = strings.TrimSpace(displayName)
@@ -779,23 +1005,39 @@ func rememberKnowledge(text, displayName string) {
 
 		learnedWordsMu.Lock()
 
+		pairs := learnedPairs[communityID]
+
 		exists := false
 
-		for _, pair := range learnedPairs {
-			if pair.Key == words[i] && pair.Value == words[i+1] {
+		for _, pair := range pairs {
+			if pair.Key == words[i] &&
+				pair.Value == words[i+1] {
 				exists = true
 				break
 			}
 		}
 
 		if !exists {
-			learnedPairs = append(learnedPairs, LearnedPair{
-				Key:   words[i],
-				Value: words[i+1],
-			})
+			learnedPairs[communityID] = append(
+				learnedPairs[communityID],
+				LearnedPair{
+					Key:   words[i],
+					Value: words[i+1],
+				},
+			)
 
-			if err := SaveLearnedPair(words[i], words[i+1]); err != nil {
-				slog.Error("SaveLearnedPair failed", slog.String("error", err.Error()))
+			if err := SaveLearnedPair(
+				communityID,
+				words[i],
+				words[i+1],
+			); err != nil {
+				slog.Error(
+					"SaveLearnedPair failed",
+					slog.String("communityID", communityID),
+					slog.String("key", words[i]),
+					slog.String("value", words[i+1]),
+					slog.String("error", err.Error()),
+				)
 			}
 		}
 
@@ -826,12 +1068,16 @@ func isProtectedName(name string) bool {
 
 	// ニックネーム機能で登録された名前・ニックネーム
 	nicknameMu.RLock()
-	for originalName, nickname := range nicknames {
-		if name == originalName || name == nickname {
-			nicknameMu.RUnlock()
-			return true
+
+	for _, communityNicknames := range nicknames {
+		for originalName, nickname := range communityNicknames {
+			if name == originalName || name == nickname {
+				nicknameMu.RUnlock()
+				return true
+			}
 		}
 	}
+
 	nicknameMu.RUnlock()
 
 	return false
@@ -3427,7 +3673,11 @@ func ensureDaseiReplyLength(reply string, originalText string) string {
 	// 適切な区切りが見つからない場合だけ140文字で切る。
 	return strings.TrimSpace(string(limit))
 }
-func createReply(text string, threadContext ...string) string {
+func createReply(
+	communityID string,
+	text string,
+	threadContext ...string,
+) string {
 
 	// 名前を呼ばれたら必ず返信
 	if strings.Contains(text, "だせい") || strings.Contains(text, "惰性") {
@@ -3452,9 +3702,19 @@ func createReply(text string, threadContext ...string) string {
 			nickname = strings.TrimSuffix(nickname, "さん")
 			nickname = strings.TrimSpace(nickname)
 			nicknameMu.Lock()
-			nicknames[name] = nickname
+
+			if nicknames[communityID] == nil {
+				nicknames[communityID] = make(map[string]string)
+			}
+
+			nicknames[communityID][name] = nickname
+
 			nicknameMu.Unlock()
-			if err := SaveNickname(name, nickname); err != nil {
+			if err := SaveNickname(
+				communityID,
+				name,
+				nickname,
+			); err != nil {
 				slog.Error("SaveNickname failed",
 					slog.String("name", name),
 					slog.String("error", err.Error()),
@@ -3468,27 +3728,39 @@ func createReply(text string, threadContext ...string) string {
 			teachMu.Lock()
 			delete(teaches, name)
 			teachMu.Unlock()
+
+			// このコミュで覚えた、この名前を含む学習ペアだけ除去する。
 			learnedWordsMu.Lock()
 
-			var filteredPairs []LearnedPair
-			for _, pair := range learnedPairs {
+			communityPairs := learnedPairs[communityID]
+
+			filteredPairs := make([]LearnedPair, 0, len(communityPairs))
+
+			for _, pair := range communityPairs {
 				if pair.Key == name || pair.Value == name {
 					continue
 				}
+
 				filteredPairs = append(filteredPairs, pair)
 			}
-			learnedPairs = filteredPairs
 
-			var filteredPhrases []LearnedPhrase
-			for _, phrase := range learnedPhrases {
-				if strings.Contains(phrase.Text, name) {
-					continue
-				}
-				filteredPhrases = append(filteredPhrases, phrase)
-			}
-			learnedPhrases = filteredPhrases
+			learnedPairs[communityID] = filteredPairs
 
 			learnedWordsMu.Unlock()
+
+			// DB側からも、このコミュの該当学習ペアだけ削除する。
+			if err := DeleteLearnedPairsByName(
+				communityID,
+				name,
+			); err != nil {
+				slog.Error(
+					"DeleteLearnedPairsByName failed",
+					slog.String("communityID", communityID),
+					slog.String("name", name),
+					slog.String("error", err.Error()),
+				)
+			}
+
 			return finalizeDaseiReply(text, addEmoji("わかった！"))
 		}
 	}
@@ -3511,13 +3783,19 @@ func createReply(text string, threadContext ...string) string {
 			}
 
 			memoryMu.Lock()
-			memories[key] = Memory{
+
+			if memories[communityID] == nil {
+				memories[communityID] = make(map[string]Memory)
+			}
+
+			memories[communityID][key] = Memory{
 				Value:     value,
 				LearnedAt: time.Now(),
 			}
+
 			memoryMu.Unlock()
 
-			if err := SaveMemory(key, value); err != nil {
+			if err := SaveMemory(communityID, key, value); err != nil {
 				slog.Error("SaveMemory failed",
 					slog.String("error", err.Error()),
 				)
@@ -3531,8 +3809,14 @@ func createReply(text string, threadContext ...string) string {
 			return finalizeDaseiReply(text, addEmoji("わかった！"))
 		}
 	} // ← これを追加
-	text = applyNicknames(text)
-	reply := replyFromMemory(text)
+	text = applyNicknames(
+		communityID,
+		text,
+	)
+	reply := replyFromMemory(
+		communityID,
+		text,
+	)
 	if reply != "" {
 		return finalizeDaseiReply(text, reply)
 	}
@@ -3660,11 +3944,23 @@ func polishDaseiJapanese(text string) string {
 
 	return strings.TrimSpace(text)
 }
-func nicknameOf(name string) string {
+func nicknameOf(
+	communityID string,
+	name string,
+) string {
+	communityID = strings.TrimSpace(communityID)
+	name = strings.TrimSpace(name)
+
+	if communityID == "" || name == "" {
+		return ""
+	}
+
 	nicknameMu.RLock()
 	defer nicknameMu.RUnlock()
 
-	if nickname, ok := nicknames[name]; ok {
+	communityNicknames := nicknames[communityID]
+
+	if nickname, ok := communityNicknames[name]; ok {
 		return nickname
 	}
 
@@ -3715,7 +4011,9 @@ func shapeDaseiParts(parts []string) string {
 
 	return text
 }
-func getRandomLearnedMaterial() string {
+func getRandomLearnedMaterial(
+	communityID string,
+) string {
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
 
@@ -3738,7 +4036,7 @@ func getRandomLearnedMaterial() string {
 	}
 
 	// 覚えているペアからも素材を集める。
-	for _, pair := range learnedPairs {
+	for _, pair := range learnedPairs[communityID] {
 		values := []string{
 			strings.TrimSpace(pair.Key),
 			strings.TrimSpace(pair.Value),
@@ -3772,7 +4070,9 @@ func getRandomLearnedMaterial() string {
 
 	return material
 }
-func getLearnedMaterials() []string {
+func getLearnedMaterials(
+	communityID string,
+) []string {
 	learnedWordsMu.RLock()
 	defer learnedWordsMu.RUnlock()
 
@@ -3793,7 +4093,7 @@ func getLearnedMaterials() []string {
 		candidates = append(candidates, text)
 	}
 
-	for _, pair := range learnedPairs {
+	for _, pair := range learnedPairs[communityID] {
 		values := []string{
 			strings.TrimSpace(pair.Key),
 			strings.TrimSpace(pair.Value),
@@ -3814,58 +4114,93 @@ func getLearnedMaterials() []string {
 
 	return candidates
 }
-func generateMemoryPost() string {
+func generateMemoryPost(
+	communityID string,
+) string {
+	communityID = strings.TrimSpace(communityID)
+
+	if communityID == "" {
+		return ""
+	}
+
 	learnedWordsMu.RLock()
 
 	var phraseCandidates []LearnedPhrase
+
+	// learnedPhrases は現在ほぼ未使用だが、
+	// 既存処理を壊さないため候補としては残す。
 	for _, phrase := range learnedPhrases {
 		if isProtectedName(phrase.Text) {
 			continue
 		}
+
 		if isMeaninglessLearnedText(phrase.Text) {
 			continue
 		}
-		phraseCandidates = append(phraseCandidates, phrase)
+
+		phraseCandidates = append(
+			phraseCandidates,
+			phrase,
+		)
 	}
 
 	var pairCandidates []LearnedPair
-	for _, pair := range learnedPairs {
-		if isProtectedName(pair.Key) || isProtectedName(pair.Value) {
+
+	// このコミュで学習したペアだけを見る。
+	for _, pair := range learnedPairs[communityID] {
+		if isProtectedName(pair.Key) ||
+			isProtectedName(pair.Value) {
 			continue
 		}
+
 		if isMeaninglessLearnedText(pair.Key) ||
 			isMeaninglessLearnedText(pair.Value) {
 			continue
 		}
-		pairCandidates = append(pairCandidates, pair)
+
+		pairCandidates = append(
+			pairCandidates,
+			pair,
+		)
 	}
 
 	learnedWordsMu.RUnlock()
 
-	// 覚えたフレーズを、そのまま使うこともある
-	if len(phraseCandidates) > 0 && rand.Intn(100) < 30 {
+	// 覚えたフレーズを、そのまま使うこともある。
+	if len(phraseCandidates) > 0 &&
+		rand.Intn(100) < 30 {
+
 		total := 0
 
 		for _, phrase := range phraseCandidates {
 			weight := phrase.Count
+
 			if weight <= 0 {
 				weight = 1
 			}
+
 			total += weight
 		}
 
 		pick := rand.Intn(total)
-
 		for _, phrase := range phraseCandidates {
 			weight := phrase.Count
+
 			if weight <= 0 {
 				weight = 1
 			}
 
 			if pick < weight {
-				post := addEmoji(applyNicknames(phrase.Text))
+				post := addEmoji(
+					applyNicknames(
+						communityID,
+						phrase.Text,
+					),
+				)
 
-				slog.Info("generated learned phrase",
+				slog.Info(
+					"generated learned phrase",
+					slog.String("communityID", communityID),
 					slog.String("post", post),
 				)
 
@@ -3875,13 +4210,22 @@ func generateMemoryPost() string {
 			pick -= weight
 		}
 	}
-	// 覚えたペアがなければ、覚えたフレーズを使う
+
+	// 覚えたペアが無ければ、覚えたフレーズを使う。
 	if len(pairCandidates) == 0 {
 		if len(phraseCandidates) > 0 {
 			phrase := phraseCandidates[rand.Intn(len(phraseCandidates))]
-			post := addEmoji(applyNicknames(phrase.Text))
 
-			slog.Info("generated learned phrase",
+			post := addEmoji(
+				applyNicknames(
+					communityID,
+					phrase.Text,
+				),
+			)
+
+			slog.Info(
+				"generated learned phrase",
+				slog.String("communityID", communityID),
 				slog.String("post", post),
 			)
 
@@ -3891,7 +4235,7 @@ func generateMemoryPost() string {
 		return ""
 	}
 
-	// 覚えた言葉からスタート
+	// このコミュで覚えた言葉からスタート。
 	pair := pairCandidates[rand.Intn(len(pairCandidates))]
 
 	parts := []string{
@@ -3900,11 +4244,13 @@ func generateMemoryPost() string {
 
 	current := pair.Value
 
-	// 内部記憶 → 外部辞書から1～2語つなぐ
+	// 内部記憶 → 外部辞書から1～2語つなぐ。
 	chainLength := 1 + rand.Intn(2)
-
 	for i := 0; i < chainLength; i++ {
-		next, ok := findNextWord(current)
+		next, ok := findNextWord(
+			communityID,
+			current,
+		)
 
 		if !ok || next == "" {
 			break
@@ -3916,10 +4262,16 @@ func generateMemoryPost() string {
 
 	post := shapeDaseiParts(parts)
 
-	post = applyNicknames(post)
+	post = applyNicknames(
+		communityID,
+		post,
+	)
+
 	post = addEmoji(post)
 
-	slog.Info("generated learned post",
+	slog.Info(
+		"generated learned post",
+		slog.String("communityID", communityID),
 		slog.String("post", post),
 	)
 
@@ -3944,29 +4296,42 @@ func isMeaninglessLearnedText(text string) bool {
 
 	return !meaningful
 }
-func findNextWord(word string) (string, bool) {
-	// まず、だせい自身が覚えている言葉から探す
+func findNextWord(
+	communityID string,
+	word string,
+) (string, bool) {
+	communityID = strings.TrimSpace(communityID)
+	word = strings.TrimSpace(word)
+
+	if word == "" {
+		return "", false
+	}
+
+	// まず、このコミュでだせいが覚えた言葉から探す。
 	learnedWordsMu.RLock()
 
 	candidates := []string{}
 
-	for _, pair := range learnedPairs {
+	for _, pair := range learnedPairs[communityID] {
 		if pair.Key == word &&
 			!isProtectedName(pair.Key) &&
 			!isProtectedName(pair.Value) {
 
-			candidates = append(candidates, pair.Value)
+			candidates = append(
+				candidates,
+				pair.Value,
+			)
 		}
 	}
 
 	learnedWordsMu.RUnlock()
 
-	// 内部記憶にあれば、今まで通りそれを使う
+	// このコミュの内部記憶に候補があれば使う。
 	if len(candidates) > 0 {
 		return candidates[rand.Intn(len(candidates))], true
 	}
 
-	// 内部記憶に無ければ外部辞書へ
+	// 内部記憶に無ければ外部辞書へ。
 	return findExternalNextWord(word)
 }
 func pickWord(words []string) string {
@@ -3993,13 +4358,27 @@ func pickWord(words []string) string {
 
 	return candidates[rand.Intn(len(candidates))]
 }
-func applyNicknames(text string) string {
+func applyNicknames(
+	communityID string,
+	text string,
+) string {
 	nicknameMu.RLock()
 	defer nicknameMu.RUnlock()
 
-	for name, nickname := range nicknames {
-		text = strings.ReplaceAll(text, name+"さん", nickname)
-		text = strings.ReplaceAll(text, name, nickname)
+	communityNicknames := nicknames[communityID]
+
+	for name, nickname := range communityNicknames {
+		text = strings.ReplaceAll(
+			text,
+			name+"さん",
+			nickname,
+		)
+
+		text = strings.ReplaceAll(
+			text,
+			name,
+			nickname,
+		)
 	}
 
 	return text
@@ -4063,74 +4442,108 @@ func ensureDaseiPostLength(post string, fragments []string) string {
 
 	return strings.TrimSpace(result)
 }
-func createMutter(text string) string {
-	// 30%は中二病
+func createMutter(
+	communityID string,
+	text string,
+) string {
+	communityID = strings.TrimSpace(communityID)
+
+	if communityID == "" {
+		return ""
+	}
+
+	// 30%は中二病。
 	if rand.Intn(100) < 30 {
-		post := createChuunibyou()
+		post := createChuunibyou(communityID)
 
 		if post == "" {
 			return ""
 		}
 
-		// まず厨二病の文章を最終校正する。
-		// その後に荒ぶる判定へ渡す。
 		post = finalizeDaseiReply(post, post)
 
-		return decorateMutter(post)
+		return decorateMutter(
+			communityID,
+			post,
+		)
 	}
-	learnedMaterial := strings.TrimSpace(getRandomLearnedMaterial())
-	if len(memories) > 0 {
-		memoryMu.RLock()
 
-		values := make([]string, 0, len(memories))
+	learnedMaterial := strings.TrimSpace(
+		getRandomLearnedMaterial(communityID),
+	)
 
-		for name, m := range memories {
-			nicknameMu.RLock()
-			_, isOriginalName := nicknames[name]
-			nicknameMu.RUnlock()
+	memoryMu.RLock()
 
-			if isOriginalName {
-				continue
-			}
+	communityMemories := memories[communityID]
 
-			value := strings.TrimSpace(m.Value)
+	values := make(
+		[]string,
+		0,
+		len(communityMemories),
+	)
 
-			if value == "" {
-				continue
-			}
+	for name, m := range communityMemories {
+		nicknameMu.RLock()
 
-			values = append(values, value)
+		communityNicknames := nicknames[communityID]
+		_, isOriginalName := communityNicknames[name]
+
+		nicknameMu.RUnlock()
+
+		if isOriginalName {
+			continue
 		}
 
-		memoryMu.RUnlock()
+		value := strings.TrimSpace(m.Value)
 
-		if len(values) > 0 {
-			material := values[rand.Intn(len(values))]
+		if value == "" {
+			continue
+		}
 
-			if learnedMaterial != "" {
-				material = material + " " + learnedMaterial
-			}
+		values = append(
+			values,
+			value,
+		)
+	}
 
-			draft := generateDaseiDraftFromReference(material)
+	memoryMu.RUnlock()
+	if len(values) > 0 {
+		material := values[rand.Intn(len(values))]
 
-			if draft != "" {
-				draft = applyNicknames(draft)
+		if learnedMaterial != "" {
+			material = material + " " + learnedMaterial
+		}
 
-				// 通常独り言を最終校正してから、
-				// 装飾・荒ぶる判定へ渡す。
-				draft = finalizeDaseiReply(material, draft)
+		draft := generateDaseiDraftFromReference(
+			material,
+		)
 
-				return decorateMutter(draft)
-			}
+		if draft != "" {
+			draft = applyNicknames(
+				communityID,
+				draft,
+			)
 
-			// 検索結果から生成できなかった場合は、
-			// 従来のランダム生成へ戻す。
+			draft = finalizeDaseiReply(
+				material,
+				draft,
+			)
+
 			return decorateMutter(
-				applyNicknames(material),
+				communityID,
+				draft,
 			)
 		}
-	}
 
+		return decorateMutter(
+			communityID,
+			applyNicknames(
+				communityID,
+				material,
+			),
+		)
+
+	}
 	mutters := []string{
 		"？",
 		"はい",
@@ -4139,7 +4552,9 @@ func createMutter(text string) string {
 	}
 
 	return decorateMutter(
+		communityID,
 		applyNicknames(
+			communityID,
 			mutters[rand.Intn(len(mutters))],
 		),
 	)
@@ -4300,7 +4715,9 @@ func generateDaseiDraftFromReference(material string) string {
 
 	return draft
 }
-func createChuunibyou() string {
+func createChuunibyou(
+	communityID string,
+) string {
 	templates := []string{
 		"我が右腕に宿りし【能力】……今こそ、その封印を解き放つ時だ……！",
 		"我が名は【名前】……この世界を支配するために堕天した者だ。",
@@ -4316,13 +4733,25 @@ func createChuunibyou() string {
 
 	memoryMu.RLock()
 
-	values := make([]string, 0, len(memories))
-	for _, m := range memories {
-		values = append(values, m.Value)
+	communityMemories := memories[communityID]
+
+	values := make(
+		[]string,
+		0,
+		len(communityMemories),
+	)
+
+	for _, m := range communityMemories {
+		value := strings.TrimSpace(m.Value)
+
+		if value == "" {
+			continue
+		}
+
+		values = append(values, value)
 	}
 
 	memoryMu.RUnlock()
-
 	result := templates[rand.Intn(len(templates))]
 
 	if len(values) > 0 {
@@ -4337,11 +4766,10 @@ func createChuunibyou() string {
 		result = strings.ReplaceAll(result, "【名前】", "")
 	}
 
-	result = applyNicknames(result)
-
-	if len([]rune(result)) > 149 {
-		result = string([]rune(result)[:149])
-	}
+	result = applyNicknames(
+		communityID,
+		result,
+	)
 
 	if len([]rune(result)) > 149 {
 		result = string([]rune(result)[:149])
@@ -4373,53 +4801,91 @@ func isNGAccount(account string) bool {
 	}
 	return false
 }
-func getMemberNickname(userID string) string {
+func getMemberNickname(
+	communityID string,
+	userID string,
+) string {
+	communityID = strings.TrimSpace(communityID)
+	userID = strings.TrimSpace(userID)
+
+	if communityID == "" || userID == "" {
+		return ""
+	}
+
 	membersMu.RLock()
-	name := members[userID]
+	name := strings.TrimSpace(members[userID])
 	membersMu.RUnlock()
 
 	if name == "" {
 		return ""
 	}
-	slog.Info("nickname lookup",
+
+	slog.Info(
+		"nickname lookup",
+		slog.String("communityID", communityID),
 		slog.String("userID", userID),
 		slog.String("memberName", name),
 	)
-	// まずメモリを見る。
+
+	// まず、このコミュのニックネームだけを見る。
 	nicknameMu.RLock()
-	nickname := strings.TrimSpace(nicknames[name])
+
+	communityNicknames := nicknames[communityID]
+	nickname := strings.TrimSpace(communityNicknames[name])
+
 	nicknameMu.RUnlock()
 
 	if nickname != "" {
-		slog.Info("nickname cache hit",
+		slog.Info(
+			"nickname cache hit",
+			slog.String("communityID", communityID),
 			slog.String("memberName", name),
 			slog.String("nickname", nickname),
 		)
+
 		return nickname
 	}
 
-	// メモリに無ければDBから復元する。
-	savedNickname, err := LoadNickname(name)
-	slog.Info("nickname loaded",
-		slog.String("memberName", name),
-		slog.String("nickname", savedNickname),
+	// メモリに無ければ、このコミュのDB記録から復元する。
+	savedNickname, err := LoadNickname(
+		communityID,
+		name,
 	)
+
 	if err != nil {
-		slog.Error("LoadNickname failed",
+		slog.Error(
+			"LoadNickname failed",
+			slog.String("communityID", communityID),
 			slog.String("name", name),
 			slog.String("error", err.Error()),
 		)
+
 		return ""
 	}
 
 	savedNickname = strings.TrimSpace(savedNickname)
+
+	slog.Info(
+		"nickname loaded",
+		slog.String("communityID", communityID),
+		slog.String("memberName", name),
+		slog.String("nickname", savedNickname),
+	)
+
 	if savedNickname == "" {
 		return ""
 	}
 
-	// 次回以降はDBを読まなくて済むようキャッシュする。
+	// 次回以降はDBを読まなくて済むよう、
+	// このコミュ専用のキャッシュへ保存する。
 	nicknameMu.Lock()
-	nicknames[name] = savedNickname
+
+	if nicknames[communityID] == nil {
+		nicknames[communityID] = make(map[string]string)
+	}
+
+	nicknames[communityID][name] = savedNickname
+
 	nicknameMu.Unlock()
 
 	return savedNickname
@@ -4538,6 +5004,7 @@ func (h *Handler) getThreadPosts(
 	return reversed, nil
 }
 func GenerateReplyWithThread(
+	communityID string,
 	text string,
 	isMention bool,
 	threadPosts []*modelv1.Post,
@@ -4606,12 +5073,14 @@ func GenerateReplyWithThread(
 	}
 
 	return createReply(
+		communityID,
 		text,
 		threadContext,
 	)
 }
 func GenerateReplyWithGroq(
 	ctx context.Context,
+	communityID string,
 	text string,
 	isMention bool,
 	threadPosts []*modelv1.Post,
@@ -4660,6 +5129,7 @@ func GenerateReplyWithGroq(
 
 	if isNicknameTeach || isKnowledgeTeach {
 		return createReply(
+			communityID,
 			text,
 			strings.Join(threadHistory, "\n"),
 		), false
@@ -4671,6 +5141,7 @@ func GenerateReplyWithGroq(
 		strings.Contains(text, "なんの話してた") {
 
 		return GenerateReplyWithThread(
+			communityID,
 			text,
 			isMention,
 			threadPosts,
@@ -4706,7 +5177,7 @@ func GenerateReplyWithGroq(
 	}
 	// 20%：怪文書
 	if roll < 40 {
-		communityWords := getLearnedMaterials()
+		communityWords := getLearnedMaterials(communityID)
 
 		result := makeKaibunsho(
 			text,
@@ -4731,7 +5202,10 @@ func GenerateReplyWithGroq(
 	}
 
 	// 60%：Groq
-	memoryHint := getRelevantMemory(text)
+	memoryHint := getRelevantMemory(
+		communityID,
+		text,
+	)
 
 	slog.Info("nickname before groq",
 		slog.String("nickname", nickname),
@@ -4769,13 +5243,17 @@ func GenerateReplyWithGroq(
 	}
 
 	return GenerateReplyWithThread(
+		communityID,
 		text,
 		isMention,
 		threadPosts,
 		daseiCreatorID,
 	), false
 }
-func GenerateReply(text string, isMention bool) string {
+func GenerateReply(
+	text string,
+	isMention bool,
+) string {
 	if isMention {
 		if reply := mentionReply(text); reply != "" {
 			return reply
@@ -4786,10 +5264,20 @@ func GenerateReply(text string, isMention bool) string {
 		return reply
 	}
 
-	return createReply(text)
-}
+	reply := generateRandomDaseiDraft(text)
 
-// handleChatMessage handles chat message received events by echoing the message back.
+	if reply != "" {
+		return finalizeDaseiReply(
+			text,
+			reply,
+		)
+	}
+
+	return finalizeDaseiReply(
+		text,
+		"そうなんだね",
+	)
+}
 func (h *Handler) handleChatMessage(ctx context.Context, ev *modelv1.ChatMessageReceivedEvent) error {
 	msg := ev.GetMessage()
 	if msg == nil {
@@ -4842,20 +5330,4 @@ func addEmoji(text string) string {
 	}
 
 	return text
-}
-func randomLearnedWord() string {
-	learnedWordsMu.RLock()
-	defer learnedWordsMu.RUnlock()
-
-	if len(learnedPairs) == 0 {
-		return ""
-	}
-
-	pair := learnedPairs[rand.Intn(len(learnedPairs))]
-
-	if rand.Intn(2) == 0 {
-		return pair.Key
-	}
-
-	return pair.Value
 }
